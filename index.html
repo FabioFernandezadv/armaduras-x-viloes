@@ -578,6 +578,8 @@ const PRECO_ARMADURA = {
   mago_fogo: 100, mago_gelo: 150, mago_terra: 200, mago_vento: 250,
   princesa: 300, samurai: 350, elementar: 400,
   angelical: 700, dragao_supremo: 1500,
+  // Armaduras anime (compráveis na loja, fortes)
+  individualidade: 1200, limitless: 1800,
   // Armaduras de boss (só desbloqueadas comprando)
   boss_dragao: 200, boss_demonio: 250, boss_comissario: 300,
   boss_doutor: 400, boss_shigaraki: 800, boss_glitch: 350,
@@ -589,6 +591,7 @@ const TODAS_ARMADURAS = [
   'cavaleiro','ninja','robo',
   'mago_fogo','mago_gelo','mago_terra','mago_vento',
   'princesa','samurai','elementar','angelical','dragao_supremo',
+  'individualidade','limitless',
   'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
   'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
 ];
@@ -677,6 +680,7 @@ const NOME_ARMADURA = {
   angelical: 'ANGELICAL', princesa: 'PRINCESA GUERREIRA',
   samurai: 'SAMURAI', elementar: 'ELEMENTAR ÁGUA & FOGO',
   dragao_supremo: 'DRAGÃO SUPREMO',
+  individualidade: 'INDIVIDUALIDADE', limitless: 'LIMITLESS',
   // 10 ARMADURAS DE BOSS (ganhas ao derrotar cada chefe da fase)
   boss_dragao: 'DRAGÃO', boss_demonio: 'DEMÓNIO DE FOGO',
   boss_comissario: 'COMISSÁRIO', boss_doutor: 'DOUTOR MUTANTE',
@@ -811,6 +815,38 @@ function tentarAtacar() {
       atingidos: new Set(),
     };
     tremerEcra(6);
+  } else if (heroi.armadura === 'individualidade') {
+    // INDIVIDUALIDADE (One For All) — soco potente "DETROIT SMASH"
+    // Hitbox grande corpo-a-corpo + 2 ondas de choque que viajam
+    som(440, 0.08, 'sawtooth', 0.16);
+    som(880, 0.1, 'square', 0.12);
+    som(1320, 0.12, 'sine', 0.1);
+    const alcance = 80;
+    const hx = heroi.olhandoDireita ? heroi.x + heroi.w : heroi.x - alcance;
+    hitboxAtaque = { x: hx, y: heroi.y, w: alcance, h: heroi.h, vida: 8, dano: 3 };
+    // Onda de choque verde-eléctrica (2 anéis)
+    for (let i = -1; i <= 1; i += 2) {
+      projeteis.push({ tipo:'energia_boss', x: cx, y: cy + i*8, vx: 12*dir, vy: 0,
+        w: 36, h: 14, dano: 2, vida: 80, atravessa: true,
+        corPrim:'#0f4', corSec:'#fff' });
+    }
+    tremerEcra(8);
+  } else if (heroi.armadura === 'limitless') {
+    // LIMITLESS (Hollow Purple do Gojo) — feixe roxo gigante que atravessa
+    som(150, 0.25, 'sawtooth', 0.18);
+    som(900, 0.18, 'sine', 0.12);
+    som(1500, 0.2, 'square', 0.1);
+    som(2000, 0.15, 'sine', 0.08);
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy + 4, vx: 18*dir, vy: 0,
+      w: 90, h: 18, dano: 3, vida: 90, atravessa: true,
+      corPrim:'#80f', corSec:'#fff' });
+    // Pequenas esferas roxas a acompanhar (efeito visual)
+    for (let i = 0; i < 3; i++) {
+      projeteis.push({ tipo:'energia_boss', x: cx - i*20*dir, y: cy + (i-1)*6, vx: 18*dir, vy: 0,
+        w: 12, h: 12, dano: 1, vida: 90, atravessa: true,
+        corPrim:'#a4f', corSec:'#fff' });
+    }
+    tremerEcra(12);
   } else if (heroi.armadura === 'boss_dragao') {
     // Sopro de dragão: esfera roxa potente, dano 2
     som(550, 0.12, 'sawtooth', 0.15);
@@ -3277,6 +3313,8 @@ function desenharHeroi() {
   else if (h.armadura === 'samurai')     { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fff'; }
   else if (h.armadura === 'elementar')   { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fc0'; }
   else if (h.armadura === 'dragao_supremo') { corPernas = '#063'; corTronco = '#0a4';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'individualidade'){ corPernas = '#063'; corTronco = '#0c4';    corDetalhe = '#fff'; }
+  else if (h.armadura === 'limitless')      { corPernas = '#000'; corTronco = '#fff';    corDetalhe = '#0cf'; }
   // 10 ARMADURAS DE BOSS
   else if (h.armadura === 'boss_dragao')      { corPernas = '#400060'; corTronco = '#7a2a8a'; corDetalhe = '#fc0'; }
   else if (h.armadura === 'boss_demonio')     { corPernas = '#600';    corTronco = '#c40';    corDetalhe = '#ff0'; }
@@ -3453,6 +3491,54 @@ function desenharHeroi() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(x + 10, y + 4, 2, 4);
     ctx.fillRect(x + 24, y + 4, 2, 4);
+  } else if (h.armadura === 'individualidade') {
+    // INDIVIDUALIDADE: aura verde + raios eléctricos brancos crepitantes
+    const auraPulso = (Math.sin(tempo*0.3)+1)/2;
+    ctx.fillStyle = `rgba(0,255,80,${0.15 + auraPulso*0.2})`;
+    ctx.fillRect(x - 12, y - 12, h.w + 24, h.h + 24);
+    // Raios brancos a piscar (frame-alternante)
+    const raioFrame = Math.floor(tempo/4)%2;
+    ctx.fillStyle = '#fff';
+    if (raioFrame) {
+      ctx.fillRect(x - 8, y + 14, 6, 2);
+      ctx.fillRect(x + h.w + 2, y + 24, 6, 2);
+      ctx.fillRect(x - 4, y + 36, 4, 2);
+    } else {
+      ctx.fillRect(x - 6, y + 20, 6, 2);
+      ctx.fillRect(x + h.w + 4, y + 30, 6, 2);
+      ctx.fillRect(x - 2, y + 8, 4, 2);
+      ctx.fillRect(x + h.w, y + 12, 4, 2);
+    }
+    // Brilho verde-eléctrico no peito (núcleo de poder)
+    ctx.fillStyle = '#0f4';
+    ctx.fillRect(x + h.w/2 - 4, y + 22, 8, 6);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + h.w/2 - 1, y + 24, 2, 2);
+  } else if (h.armadura === 'limitless') {
+    // LIMITLESS: aura azul-celeste + cabelo branco + venda preta
+    const aura = (Math.sin(tempo*0.2)+1)/2;
+    ctx.fillStyle = `rgba(0,200,255,${0.18 + aura*0.18})`;
+    ctx.fillRect(x - 14, y - 14, h.w + 28, h.h + 28);
+    // Sobrescreve o cabelo verde com BRANCO (Gojo style)
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 4, y - 2, 28, 10);
+    ctx.fillRect(x + 2, y, 4, 10);
+    ctx.fillRect(x + 28, y, 4, 10);
+    // VENDA PRETA cobre os olhos
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 4, y + 9, 28, 6);
+    // Faixa central da venda em azul (símbolo)
+    ctx.fillStyle = '#0cf';
+    ctx.fillRect(x + h.w/2 - 6, y + 11, 12, 2);
+    // Pequenas centelhas azuis flutuando
+    ctx.fillStyle = `rgba(0,200,255,${0.6 + aura*0.4})`;
+    ctx.fillRect(x - 6, y + 22, 4, 2);
+    ctx.fillRect(x + h.w + 2, y + 30, 4, 2);
+    ctx.fillRect(x + h.w/2, y - 6, 3, 3);
+    // Símbolo de infinidade no peito
+    ctx.fillStyle = '#0cf';
+    ctx.fillRect(x + h.w/2 - 5, y + 28, 4, 2);
+    ctx.fillRect(x + h.w/2 + 1, y + 28, 4, 2);
   } else if (h.armadura === 'boss_dragao') {
     // 2 chifres dourados + escamas no peito
     ctx.fillStyle = '#fc0';
