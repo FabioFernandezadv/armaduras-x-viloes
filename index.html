@@ -428,6 +428,23 @@ function criarDragao(x, vida=8, cor='#7a2a8a', nome='DRAGÃO') {
   return { tipo:'dragao', x, y: CHAO_Y - 70, w: 80, h: 70,
     vx: -0.8, vida, vidaMax: vida, dano: 1, pontos: 300, atingido: 0, chefe: true, cor, nome };
 }
+/* ============================================================
+   ESCALA DE DIFICULDADE
+   Aplicada após spawnInimigos. Escala vida e dano consoante a fase.
+   ============================================================ */
+function escalarInimigos(lista, faseNumero) {
+  // +12% de vida por fase. Fase 1 = 1.0×, Fase 5 = 1.48×, Fase 10 = 2.08×
+  const fator = 1 + (faseNumero - 1) * 0.12;
+  for (const i of lista) {
+    i.vida = Math.ceil(i.vida * fator);
+    i.vidaMax = i.vida;
+    // Dano só sobe ligeiramente para não punir excessivamente
+    if (faseNumero >= 6) i.dano = Math.max(i.dano, 1);
+    if (faseNumero >= 9 && !i.chefe) i.dano = 2;
+  }
+  return lista;
+}
+
 // Inimigo voador: ignora gravidade, oscila para cima e para baixo.
 function criarVoador(x, cor='#e84') {
   return { tipo:'voador', x, y: CHAO_Y - 180, w: 34, h: 28,
@@ -464,6 +481,36 @@ let ondaPrincesa = null;         // pulso de energia 360° da Princesa Guerreira
 let armorChangeTimer = 0;        // frames: cutscene de troca de armadura
 let armorChangeName = '';        // nome da armadura para mostrar
 let vitoriaTimer = 0;            // controla fase cinemática vs ecrã de stats
+
+/* ============================================================
+   SISTEMA DE SAVE (localStorage)
+   ============================================================ */
+const SAVE_KEY = 'axv_save_v1';
+function guardarSave(faseProxima) {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      faseProxima,
+      pontos,
+      armaduras: heroi.armadurasDesbloqueadas,
+      armaduraEquipada: heroi.armadura,
+      data: Date.now(),
+    }));
+  } catch(e) { console.warn('save falhou', e); }
+}
+function carregarSave() {
+  try {
+    const s = localStorage.getItem(SAVE_KEY);
+    return s ? JSON.parse(s) : null;
+  } catch(e) { return null; }
+}
+function apagarSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch(e) {}
+}
+function aplicarSave(save) {
+  heroi.armadurasDesbloqueadas = save.armaduras;
+  heroi.armadura = save.armaduraEquipada;
+  pontos = save.pontos;
+}
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
   cavaleiro: 'CAVALEIRO', ninja: 'NINJA', robo: 'ROBÔ',
@@ -691,9 +738,9 @@ let historiaTimer = 0;
 
 /* ============================================================
    SISTEMA DE FASES DATA-DRIVEN
-   Cada fase é um objecto com a sua configuração. Replicar para
-   a Etapa 2 = adicionar mais 4 entradas neste array.
    ============================================================ */
+// Helper: plataforma. P(x, y, w?, h?) — y é distância do CHÃO (mais alto = menor y).
+function P(x, y, w=120, h=14) { return { x, y: CHAO_Y - y, w, h }; }
 const FASES = [
   {
     nome: 'CASA', numero: 1, musica: 'fase1_casa',
@@ -701,12 +748,12 @@ const FASES = [
     desenharCenario: () => desenharCenarioCasa(),
     cutscene: { ator: 'shigaraki', fala: 'ESTA CIDADE VAI CAIR, MIDORIYA!' },
     spawnInimigos: () => [
-      criarMonstro(500, 2),
-      criarMonstro(700, 2),
-      criarMonstro(950, 3),
-      criarMonstro(1200, 3),
-      criarDragao(1600),
+      criarMonstro(500, 2), criarMonstro(700, 2),
+      criarMonstro(950, 3), criarMonstro(1200, 3),
+      criarMonstro(1400, 2),
+      criarDragao(1700),
     ],
+    plataformas: [P(420, 80), P(820, 130, 100), P(1280, 100)],
     recompensa: 'ninja',
   },
   {
@@ -715,13 +762,16 @@ const FASES = [
     desenharCenario: () => desenharCenarioBombeiros(),
     cutscene: { ator: 'shigaraki', fala: 'OS BOMBEIROS NÃO TE VÃO SALVAR!' },
     spawnInimigos: () => [
-      criarMonstro(500, 2, '#a44'),
-      criarVoador(750, '#f80'),         // espírito de fogo voador
-      criarMonstro(950, 3, '#a44'),
-      criarVoador(1150, '#f80'),
-      criarMonstro(1350, 3, '#a44'),
-      criarDragao(1800, 12, '#c40', 'DEMÓNIO DE FOGO'),
+      criarMonstro(450, 3, '#a44'),
+      criarVoador(700, '#f80'),
+      criarMonstro(900, 3, '#a44'),
+      criarVoador(1100, '#f80'),
+      criarMonstro(1300, 4, '#a44'),
+      criarMonstro(1500, 4, '#a44'),
+      criarVoador(1700, '#f80'),
+      criarDragao(1950, 14, '#c40', 'DEMÓNIO DE FOGO'),
     ],
+    plataformas: [P(500, 90, 100), P(900, 140, 110), P(1350, 90), P(1700, 140, 100)],
     recompensa: 'robo',
   },
   {
@@ -730,14 +780,17 @@ const FASES = [
     desenharCenario: () => desenharCenarioPolicia(),
     cutscene: { ator: 'shigaraki', fala: 'A LEI AGORA SOU EU, MIDORIYA!' },
     spawnInimigos: () => [
-      criarMonstro(400, 3, '#246'),
-      criarMonstro(650, 3, '#246'),
-      criarVoador(900, '#48f'),         // drone de vigilância
-      criarMonstro(1150, 4, '#246'),
-      criarMonstro(1450, 4, '#246'),
-      criarVoador(1700, '#48f'),
-      criarDragao(2050, 14, '#048', 'COMISSÁRIO CORRUPTO'),
+      criarMonstro(400, 4, '#246'),
+      criarMonstro(600, 4, '#246'),
+      criarVoador(800, '#48f'),
+      criarMonstro(1000, 5, '#246'),
+      criarVoador(1200, '#48f'),
+      criarMonstro(1400, 5, '#246'),
+      criarMonstro(1600, 5, '#246'),
+      criarVoador(1800, '#48f'),
+      criarDragao(2150, 16, '#048', 'COMISSÁRIO CORRUPTO'),
     ],
+    plataformas: [P(550, 100), P(950, 150, 100), P(1350, 100), P(1750, 150, 100)],
     recompensa: null,
   },
   {
@@ -746,14 +799,17 @@ const FASES = [
     desenharCenario: () => desenharCenarioHospital(),
     cutscene: { ator: 'shigaraki', fala: 'NEM OS DOUTORES TE VÃO CURAR DESTA!' },
     spawnInimigos: () => [
-      criarMonstro(500, 4, '#8a4'),     // doutores-vilões verdes
-      criarVoador(700, '#fff'),         // seringa voadora
-      criarMonstro(950, 4, '#8a4'),
-      criarVoador(1200, '#fff'),
-      criarMonstro(1450, 5, '#8a4'),
-      criarVoador(1700, '#fff'),
-      criarDragao(2050, 16, '#286', 'DOUTOR MUTANTE'),
+      criarMonstro(450, 5, '#8a4'),
+      criarVoador(650, '#fff'),
+      criarMonstro(850, 5, '#8a4'),
+      criarVoador(1050, '#fff'),
+      criarMonstro(1250, 6, '#8a4'),
+      criarVoador(1450, '#fff'),
+      criarMonstro(1650, 6, '#8a4'),
+      criarVoador(1850, '#fff'),
+      criarDragao(2150, 18, '#286', 'DOUTOR MUTANTE'),
     ],
+    plataformas: [P(500, 90), P(950, 140, 100), P(1400, 100), P(1800, 150, 100)],
     recompensa: null,
   },
   {
@@ -762,15 +818,17 @@ const FASES = [
     desenharCenario: () => desenharCenarioSupermercado(),
     cutscene: { ator: 'shigaraki', fala: 'AQUI ACABA A TUA HISTÓRIA, HERÓI!' },
     spawnInimigos: () => [
-      criarMonstro(500, 4, '#c84'),     // funcionários-zombi
-      criarMonstro(750, 4, '#c84'),
-      criarVoador(1000, '#f4a'),
-      criarMonstro(1250, 5, '#c84'),
-      criarVoador(1500, '#f4a'),
-      criarMonstro(1750, 5, '#c84'),
-      criarVoador(2000, '#f4a'),
-      criarShigarakiBoss(2300),
+      criarMonstro(450, 5, '#c84'),
+      criarMonstro(650, 5, '#c84'),
+      criarVoador(900, '#f4a'),
+      criarMonstro(1100, 6, '#c84'),
+      criarVoador(1350, '#f4a'),
+      criarMonstro(1550, 6, '#c84'),
+      criarVoador(1800, '#f4a'),
+      criarMonstro(2000, 7, '#c84'),
+      criarShigarakiBoss(2400),
     ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100)],
     recompensa: null,
   },
   {
@@ -779,14 +837,17 @@ const FASES = [
     cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
       fala:'PENSAS QUE VENCESTE? A VERDADEIRA AMEAÇA AINDA NÃO APARECEU!' },
     spawnInimigos: () => [
-      criarMonstro(500, 5, '#a4f'),
-      criarVoador(750, '#0ff'),
-      criarMonstro(1000, 5, '#a4f'),
-      criarVoador(1250, '#0ff'),
-      criarMonstro(1500, 6, '#a4f'),
-      criarVoador(1750, '#0ff'),
-      criarDragao(2050, 18, '#608', 'GLITCH BOSS'),
+      criarMonstro(450, 6, '#a4f'),
+      criarVoador(650, '#0ff'),
+      criarMonstro(900, 6, '#a4f'),
+      criarVoador(1150, '#0ff'),
+      criarMonstro(1350, 7, '#a4f'),
+      criarVoador(1550, '#0ff'),
+      criarMonstro(1750, 7, '#a4f'),
+      criarVoador(1950, '#0ff'),
+      criarDragao(2200, 20, '#608', 'GLITCH BOSS'),
     ],
+    plataformas: [P(500, 100), P(950, 150, 100), P(1400, 100), P(1850, 150, 100)],
     recompensa: 'mago_fogo',
   },
   {
@@ -795,14 +856,17 @@ const FASES = [
     cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
       fala:'O JANTAR ESTÁ SERVIDO... E ÉS TU O PRATO PRINCIPAL!' },
     spawnInimigos: () => [
-      criarMonstro(500, 5, '#a55'),
-      criarMonstro(750, 5, '#a55'),
-      criarVoador(1000, '#fc0'),
-      criarMonstro(1250, 6, '#a55'),
-      criarVoador(1500, '#fc0'),
-      criarMonstro(1750, 6, '#a55'),
-      criarDragao(2150, 20, '#822', 'CHEF MUTANTE'),
+      criarMonstro(450, 6, '#a55'),
+      criarMonstro(650, 6, '#a55'),
+      criarVoador(900, '#fc0'),
+      criarMonstro(1100, 7, '#a55'),
+      criarVoador(1350, '#fc0'),
+      criarMonstro(1550, 7, '#a55'),
+      criarMonstro(1750, 8, '#a55'),
+      criarVoador(1950, '#fc0'),
+      criarDragao(2250, 22, '#822', 'CHEF MUTANTE'),
     ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1850, 150, 100)],
     recompensa: 'mago_gelo',
   },
   {
@@ -811,15 +875,18 @@ const FASES = [
     cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
       fala:'TENS UM HAPPY MEAL DE DOR À TUA ESPERA, HERÓI!' },
     spawnInimigos: () => [
-      criarMonstro(500, 6, '#f40'),
-      criarVoador(750, '#fc0'),
-      criarMonstro(1000, 6, '#f40'),
-      criarVoador(1250, '#fc0'),
-      criarMonstro(1500, 6, '#f40'),
-      criarVoador(1750, '#fc0'),
-      criarMonstro(2000, 7, '#f40'),
-      criarDragao(2200, 22, '#c00', 'PALHAÇO DO MAL'),
+      criarMonstro(450, 7, '#f40'),
+      criarVoador(650, '#fc0'),
+      criarMonstro(900, 7, '#f40'),
+      criarVoador(1100, '#fc0'),
+      criarMonstro(1300, 8, '#f40'),
+      criarVoador(1500, '#fc0'),
+      criarMonstro(1700, 8, '#f40'),
+      criarVoador(1900, '#fc0'),
+      criarMonstro(2100, 9, '#f40'),
+      criarDragao(2300, 24, '#c00', 'PALHAÇO DO MAL'),
     ],
+    plataformas: [P(500, 100), P(950, 150, 100), P(1400, 100), P(1850, 150, 100), P(2150, 100)],
     recompensa: 'mago_terra',
   },
   {
@@ -828,15 +895,18 @@ const FASES = [
     cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
       fala:'A LIÇÃO DE HOJE: COMO PERDER PARA SEMPRE!' },
     spawnInimigos: () => [
-      criarMonstro(500, 6, '#286'),
-      criarMonstro(750, 6, '#286'),
-      criarVoador(1000, '#fff'),
-      criarMonstro(1250, 7, '#286'),
-      criarVoador(1500, '#fff'),
-      criarMonstro(1750, 7, '#286'),
-      criarVoador(2000, '#fff'),
-      criarDragao(2300, 24, '#063', 'PROFESSOR FANTASMA'),
+      criarMonstro(450, 7, '#286'),
+      criarMonstro(650, 7, '#286'),
+      criarVoador(900, '#fff'),
+      criarMonstro(1100, 8, '#286'),
+      criarVoador(1350, '#fff'),
+      criarMonstro(1550, 8, '#286'),
+      criarMonstro(1750, 9, '#286'),
+      criarVoador(1950, '#fff'),
+      criarMonstro(2150, 9, '#286'),
+      criarDragao(2350, 26, '#063', 'PROFESSOR FANTASMA'),
     ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2200, 100)],
     recompensa: 'mago_vento',
   },
   {
@@ -845,16 +915,19 @@ const FASES = [
     cutscene: { ator:'afo', nomeAtor:'ALL FOR ONE',
       fala:'BEM-VINDO À MINHA BASE, MIDORIYA. AGORA CONHECE O VERDADEIRO MAL!' },
     spawnInimigos: () => [
-      criarMonstro(500, 7, '#a0f'),
-      criarVoador(750, '#f0f'),
-      criarMonstro(1000, 7, '#a0f'),
-      criarVoador(1250, '#f0f'),
-      criarMonstro(1500, 8, '#a0f'),
-      criarVoador(1750, '#f0f'),
-      criarMonstro(2000, 8, '#a0f'),
-      criarVoador(2200, '#f0f'),
-      criarAllForOne(2500),                  // CHEFE FINAL DO JOGO
+      criarMonstro(450, 8, '#a0f'),
+      criarVoador(650, '#f0f'),
+      criarMonstro(850, 8, '#a0f'),
+      criarVoador(1050, '#f0f'),
+      criarMonstro(1250, 9, '#a0f'),
+      criarVoador(1450, '#f0f'),
+      criarMonstro(1650, 10, '#a0f'),
+      criarVoador(1850, '#f0f'),
+      criarMonstro(2050, 10, '#a0f'),
+      criarVoador(2250, '#f0f'),
+      criarAllForOne(2550),
     ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2300, 100)],
     recompensa: 'angelical',
     finalDoJogo: true,
   },
@@ -866,7 +939,7 @@ function faseAcual() { return FASES[faseAtual]; } // helper
 function iniciarFase(idx) {
   faseAtual = idx;
   const f = FASES[idx];
-  inimigos = f.spawnInimigos();
+  inimigos = escalarInimigos(f.spawnInimigos(), f.numero);
   heroi.x = 100;
   heroi.y = CHAO_Y - heroi.h;
   heroi.vx = 0; heroi.vy = 0;
@@ -950,21 +1023,53 @@ function atualizarMenu() {
   ctx.fillStyle = '#f44';
   ctx.fillText('X VILÕES', W/2, 140);
 
-  // Prompt a piscar — em baixo, com fundo escuro semi-transparente.
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(0, H - 90, W, 60);
-  ctx.font = '20px Courier New';
-  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#aaa';
-  ctx.fillText('PRIME ENTER PARA COMEÇAR', W/2, H - 60);
-  ctx.font = '12px Courier New';
-  ctx.fillStyle = '#888';
-  ctx.fillText('Para o Luís Manuel ❤', W/2, H - 38);
+  // Verifica save existente
+  const save = carregarSave();
+
+  // Prompt em baixo: opções consoante haver save ou não
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillRect(0, H - 110, W, 80);
+
+  if (save) {
+    // Há save → 2 opções
+    ctx.font = '20px Courier New';
+    ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#4f4' : '#888';
+    ctx.fillText('ENTER ▶ CONTINUAR (Fase ' + (save.faseProxima + 1) + ')', W/2, H - 78);
+    ctx.font = '14px Courier New';
+    ctx.fillStyle = '#fc4';
+    ctx.fillText('N = NOVO JOGO (apaga progresso)', W/2, H - 56);
+    ctx.fillStyle = '#888';
+    ctx.font = '11px Courier New';
+    ctx.fillText('Para o Luís Manuel ❤', W/2, H - 36);
+  } else {
+    ctx.font = '20px Courier New';
+    ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#aaa';
+    ctx.fillText('PRIME ENTER PARA COMEÇAR', W/2, H - 70);
+    ctx.font = '12px Courier New';
+    ctx.fillStyle = '#888';
+    ctx.fillText('Para o Luís Manuel ❤', W/2, H - 46);
+  }
 
   if (teclasJustNow['Enter']) {
-    // Antes da Fase 1, mostra a história inicial.
+    if (save) {
+      // Continuar: aplica save e vai directo à cutscene da próxima fase (sem história)
+      aplicarSave(save);
+      iniciarFase(save.faseProxima);
+      estado = 'cutscene';
+      som(523, 0.1);
+    } else {
+      // Novo jogo: história inicial primeiro
+      historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
+      estado = 'historia';
+      som(523, 0.1);
+    }
+  }
+  if (teclasJustNow['KeyN'] && save) {
+    // Apaga save e começa do princípio
+    apagarSave();
     historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
     estado = 'historia';
-    som(523, 0.1);
+    som(330, 0.15, 'sawtooth');
   }
 }
 
@@ -1128,7 +1233,7 @@ function atualizarCutscene() {
     } else {
       estado = 'jogo';
       // Carrega os inimigos da fase mas mantém a posição/estado já preparado.
-      inimigos = FASES[faseAtual].spawnInimigos();
+      inimigos = escalarInimigos(FASES[faseAtual].spawnInimigos(), FASES[faseAtual].numero);
     }
   }
 }
@@ -1241,7 +1346,21 @@ function atualizarJogo() {
     heroi.y = CHAO_Y - heroi.h;
     heroi.vy = 0;
     heroi.noChao = true;
-    if (heroi.voando) heroi.voando = false; // aterragem força sair do voo
+    if (heroi.voando) heroi.voando = false;
+  }
+  // Colisão com PLATAFORMAS — só "aterra" quando vem de cima e estava acima.
+  if (heroi.vy >= 0 && !heroi.voando) {
+    const plats = FASES[faseAtual].plataformas || [];
+    const yAnterior = heroi.y - heroi.vy * dtF; // posição no início do frame
+    for (const p of plats) {
+      if (heroi.x + heroi.w > p.x + 4 && heroi.x < p.x + p.w - 4 &&
+          heroi.y + heroi.h >= p.y && yAnterior + heroi.h <= p.y + 2) {
+        heroi.y = p.y - heroi.h;
+        heroi.vy = 0;
+        heroi.noChao = true;
+        break;
+      }
+    }
   }
   // Limites da fase
   const larguraFase = FASES[faseAtual].largura;
@@ -1511,6 +1630,7 @@ function atualizarJogo() {
   ctx.save();
   ctx.translate(-Math.floor(camera.x), 0);
   desenharSombraHeroi();
+  desenharPlataformas();
   for (const pk of pickups) desenharPickup(pk);
   for (const ini of inimigos) desenharInimigo(ini);
   desenharTrailHeroi(); // rasto vai por trás do herói
@@ -1625,6 +1745,22 @@ function desenharTrailHeroi() {
   ctx.globalAlpha = 1;
 }
 
+function desenharPlataformas() {
+  const plats = FASES[faseAtual].plataformas || [];
+  for (const p of plats) {
+    // Plataforma sólida com sombra superior + linha de detalhe
+    ctx.fillStyle = '#3a2818';
+    ctx.fillRect(p.x, p.y + 3, p.w, p.h);          // sombra
+    ctx.fillStyle = '#7a5832';
+    ctx.fillRect(p.x, p.y, p.w, p.h - 3);          // base
+    ctx.fillStyle = '#a87a4a';
+    ctx.fillRect(p.x, p.y, p.w, 3);                // topo claro
+    // Pinos metálicos nas extremidades
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(p.x + 4, p.y + 2, 3, 3);
+    ctx.fillRect(p.x + p.w - 7, p.y + 2, 3, 3);
+  }
+}
 function desenharSombraHeroi() {
   // Elipse achatada por baixo do herói — ajuda a ler a altura do salto
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -2971,7 +3107,10 @@ function atualizarVitoria() {
     ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#888';
     ctx.font = '16px Courier New';
     ctx.fillText('Para o Luís Manuel ❤  ·  ENTER para voltar ao menu', W/2, H/2 + 105);
-    if (teclasJustNow['Enter']) estado = 'menu';
+    if (teclasJustNow['Enter']) {
+      apagarSave(); // jogo terminado, próxima vez começa do início
+      estado = 'menu';
+    }
     return;
   }
   ctx.fillStyle = 'rgba(0,40,0,0.85)';
@@ -2994,8 +3133,16 @@ function atualizarVitoria() {
     : 'PRIME ENTER PARA VOLTAR AO MENU', W/2, H/2 + 80);
 
   if (teclasJustNow['Enter']) {
-    if (haProxima) { iniciarFase(faseAtual + 1); estado = 'cutscene'; }
-    else { estado = 'menu'; }
+    if (haProxima) {
+      // Guarda progresso ANTES de avançar (continua a partir da próxima fase)
+      guardarSave(faseAtual + 1);
+      iniciarFase(faseAtual + 1);
+      estado = 'cutscene';
+    } else {
+      // Final do jogo (sem finalDoJogo flag mas sem próxima): apaga save
+      apagarSave();
+      estado = 'menu';
+    }
   }
 }
 
