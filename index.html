@@ -509,6 +509,19 @@ let armorChangeName = '';        // nome da armadura para mostrar
 let vitoriaTimer = 0;            // controla fase cinemática vs ecrã de stats
 let nivelNG = 0;                 // New Game+ (0 = primeira volta; cada AFO derrotado +1)
 let bossIntroFeito = false;      // já foi mostrada a intro do boss desta fase?
+let damageNumbers = [];          // números de dano flutuantes
+let combo = 0;                   // contador de kills consecutivos
+let comboTimer = 0;              // frames antes do combo resetar
+let heroDamageFlash = 0;         // tint vermelho ao levar dano
+function spawnDamageNumber(x, y, dano, cor) {
+  if (!cor) cor = dano >= 3 ? '#f44' : dano >= 2 ? '#fc0' : '#fff';
+  damageNumbers.push({ x: x + (Math.random()-0.5)*10, y: y - 8,
+    vy: -2.5, vida: 50, valor: dano, cor });
+}
+function registrarKill() {
+  combo++;
+  comboTimer = 100;
+}
 let bossIntroTimer = 0;          // frames de duração da intro
 let bossIntroFala = '';          // frase do boss (varia por chefe)
 let bossIntroNome = '';          // nome do boss
@@ -848,23 +861,353 @@ function tentarAtacar() {
 let cutsceneIndice = 0;     // letras já reveladas
 let cutsceneTimer = 0;      // controla velocidade da revelação
 
-/* ---------- HISTÓRIA INICIAL ---------- */
-// Cutscene narrativa antes da Fase 1: explica como o vilão invadiu a cidade.
+/* ---------- HISTÓRIA INICIAL — Cenas animadas (gameplay-like) ---------- */
+
+// Cada cena é uma função que desenha uma scena dinâmica em função do tempo.
+function cenaPaz(t) {
+  // Céu a "amanhecer" — gradiente azul → laranja
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#1a3a8a');
+  grd.addColorStop(0.6, '#48a');
+  grd.addColorStop(1, '#fa6');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Sol a subir do horizonte
+  const sunY = H - 80 - Math.min(180, t * 0.6);
+  ctx.fillStyle = 'rgba(255,200,40,0.35)';
+  ctx.beginPath(); ctx.arc(W/2, sunY, 90, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fc0';
+  ctx.beginPath(); ctx.arc(W/2, sunY, 50, 0, Math.PI*2); ctx.fill();
+  // Skyline da cidade (silhuetas)
+  ctx.fillStyle = '#1a1a3a';
+  for (let i = 0; i < 14; i++) {
+    const bx = i * 70 + (i%2 ? 10 : 0);
+    const bh = 70 + Math.abs(Math.sin(i * 1.7)) * 80;
+    ctx.fillRect(bx, H - bh, 60, bh);
+    // Janelas amarelas
+    ctx.fillStyle = '#fc0';
+    for (let j = 0; j < bh/15; j++) {
+      if ((i + j) % 3 === 0) ctx.fillRect(bx + 8 + (j%2)*16, H - bh + 10 + j*15, 4, 6);
+    }
+    ctx.fillStyle = '#1a1a3a';
+  }
+  // Habitantes a caminhar (pequenas figuras)
+  for (let i = 0; i < 8; i++) {
+    const px = ((t*0.9 + i*150) % (W+50)) - 25;
+    const py = H - 28;
+    ctx.fillStyle = ['#48f','#f44','#4f4','#fc0','#f0a'][i%5];
+    ctx.fillRect(px, py, 4, 8);
+    ctx.fillStyle = '#fcc'; ctx.fillRect(px - 1, py - 4, 6, 4);
+    // Pernas a alternar
+    ctx.fillStyle = '#000';
+    const passo = Math.floor(t/8 + i)%2;
+    ctx.fillRect(px, py + 8, 2, 3 - passo);
+    ctx.fillRect(px + 3, py + 8, 2, 2 + passo);
+  }
+}
+
+function cenaInvasao(t) {
+  // Céu rapidamente a escurecer
+  const escuro = Math.min(1, t * 0.012);
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, `rgb(${30-escuro*30},${10-escuro*10},${40-escuro*40})`);
+  grd.addColorStop(1, `rgb(${100-escuro*60},${20-escuro*20},${20-escuro*20})`);
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Relâmpagos aleatórios
+  if (Math.random() < 0.04) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Cidade silhueta ao fundo
+  ctx.fillStyle = '#0a0a1a';
+  for (let i = 0; i < 14; i++) {
+    const bx = i * 70;
+    const bh = 60 + Math.abs(Math.sin(i * 1.7)) * 80;
+    ctx.fillRect(bx, H - bh, 60, bh);
+  }
+  // VILÃO GIGANTE desce do céu
+  const vilaoY = -150 + Math.min(200, t * 1.2);
+  if (imgVilaoPronto) {
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    const tam = 320;
+    ctx.drawImage(imgVilao, W/2 - tam/2, vilaoY, tam, tam);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = '#400'; ctx.fillRect(W/2 - 80, vilaoY + 50, 160, 200);
+  }
+  // Monstros a cair como meteoros
+  for (let i = 0; i < 5; i++) {
+    const mx = (i * 200 + 80);
+    const my = -50 + ((t * 3 + i * 60) % (H + 100));
+    if (my < H - 20) {
+      ctx.fillStyle = '#a44';
+      ctx.fillRect(mx, my, 30, 30);
+      ctx.fillStyle = '#ff0';
+      ctx.fillRect(mx + 6, my + 6, 5, 5); ctx.fillRect(mx + 19, my + 6, 5, 5);
+      // Rasto de fogo
+      ctx.fillStyle = '#f80';
+      ctx.fillRect(mx + 10, my - 20, 10, 20);
+    }
+  }
+}
+
+function cenaCaos(t) {
+  // Céu vermelho escuro
+  ctx.fillStyle = '#3a0010'; ctx.fillRect(0, 0, W, H);
+  // Cidade a arder
+  ctx.fillStyle = '#1a0a0a';
+  for (let i = 0; i < 14; i++) {
+    const bx = i * 70;
+    const bh = 70 + Math.abs(Math.sin(i * 1.7)) * 70;
+    ctx.fillRect(bx, H - bh, 60, bh);
+    // Chamas no topo de cada prédio
+    const ch = 30 + Math.abs(Math.sin(t * 0.1 + i)) * 20;
+    ctx.fillStyle = '#c00'; ctx.fillRect(bx + 10, H - bh - ch, 40, ch);
+    ctx.fillStyle = '#f80'; ctx.fillRect(bx + 14, H - bh - ch + 4, 32, ch - 8);
+    ctx.fillStyle = (Math.floor(t/4)%2) ? '#fc0' : '#ff0';
+    ctx.fillRect(bx + 20, H - bh - ch + 8, 20, ch - 16);
+    ctx.fillStyle = '#1a0a0a';
+  }
+  // Explosão pulsante no centro
+  if (Math.floor(t/40)%2 === 0) {
+    const r = 40 + (t%40) * 4;
+    ctx.fillStyle = `rgba(255,200,0,${1 - (t%40)/40})`;
+    ctx.beginPath(); ctx.arc(W*0.7, H*0.5, r, 0, Math.PI*2); ctx.fill();
+  }
+  // Habitantes a fugir (correm para a esquerda)
+  for (let i = 0; i < 6; i++) {
+    const px = W - ((t*2 + i*120) % (W+100));
+    const py = H - 40;
+    ctx.fillStyle = '#fcc';
+    ctx.fillRect(px, py - 4, 6, 4);
+    ctx.fillStyle = '#48f';
+    ctx.fillRect(px, py, 5, 10);
+    // Pernas a correr
+    const passo = Math.floor(t/4 + i)%2;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(px, py + 10, 2, passo ? 5 : 2);
+    ctx.fillRect(px + 3, py + 10, 2, passo ? 2 : 5);
+  }
+  // Fumo a subir
+  for (let i = 0; i < 10; i++) {
+    const sx = (i * 120 + t*0.5) % W;
+    const sy = ((t*1.5 + i*80) % H);
+    ctx.fillStyle = `rgba(80,80,80,${1 - sy/H})`;
+    ctx.fillRect(sx, sy, 8, 8);
+  }
+}
+
+function cenaBase(t) {
+  // Câmara a descer — gradiente vai escurecendo
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#100020');
+  grd.addColorStop(1, '#400010');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Cristais roxos a crescer (altura aumenta com t)
+  for (let i = 0; i < 7; i++) {
+    const cx = 100 + i * 130;
+    const ch = Math.min(180, 40 + t * 0.6 + i * 8);
+    const cy = H - ch;
+    ctx.fillStyle = (Math.floor(t/8)%2) ? '#a4f' : '#608';
+    ctx.beginPath();
+    ctx.moveTo(cx + 25, cy);
+    ctx.lineTo(cx + 50, cy + ch/2);
+    ctx.lineTo(cx + 25, cy + ch);
+    ctx.lineTo(cx, cy + ch/2);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(cx + 23, cy + 20, 4, ch - 40);
+  }
+  // Tronos negros aparecendo gradualmente (fade in)
+  const tronoAlpha = Math.min(1, (t - 60) / 60);
+  if (tronoAlpha > 0) {
+    ctx.globalAlpha = tronoAlpha;
+    ctx.fillStyle = '#222';
+    for (let j = 0; j < 3; j++) {
+      const tx = 200 + j * 280;
+      ctx.fillRect(tx, H - 200, 80, 200);
+      ctx.fillStyle = '#400'; ctx.fillRect(tx + 8, H - 192, 64, 192);
+      ctx.fillStyle = '#f00'; ctx.fillRect(tx + 30, H - 160, 20, 50);
+      ctx.fillStyle = '#222';
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Energia a pulsar do chão
+  ctx.fillStyle = `rgba(255,0,80,${0.2 + Math.sin(t*0.1)*0.1})`;
+  ctx.fillRect(0, H - 8, W, 8);
+}
+
+function cenaMedo(t) {
+  // Rua nocturna
+  ctx.fillStyle = '#0a0a20'; ctx.fillRect(0, 0, W, H);
+  // Casas em fila com janelas
+  for (let i = 0; i < 6; i++) {
+    const cx = i * 170;
+    const ch = 280;
+    ctx.fillStyle = '#1a1a3a';
+    ctx.fillRect(cx, H - ch, 160, ch);
+    // Janelas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(cx + 20, H - 200, 40, 50);
+    ctx.fillRect(cx + 100, H - 200, 40, 50);
+    // Olhos assustados a piscar dentro das janelas
+    if (Math.floor(t/15 + i)%3 !== 0) {
+      ctx.fillStyle = '#fc0';
+      ctx.fillRect(cx + 28, H - 188, 4, 4);
+      ctx.fillRect(cx + 40, H - 188, 4, 4);
+      ctx.fillRect(cx + 108, H - 188, 4, 4);
+      ctx.fillRect(cx + 120, H - 188, 4, 4);
+    }
+    // Porta
+    ctx.fillStyle = '#3a1a0a';
+    ctx.fillRect(cx + 70, H - 110, 30, 110);
+  }
+  // Vilões patrulham (silhuetas com olhos vermelhos)
+  for (let i = 0; i < 3; i++) {
+    const vx = ((t*1.2 + i*350) % (W + 100)) - 50;
+    const vy = H - 60;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(vx, vy, 24, 50);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(vx + 4, vy + 8, 4, 4);
+    ctx.fillRect(vx + 16, vy + 8, 4, 4);
+    // Pernas
+    const passo = Math.floor(t/4 + i)%2;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(vx + 4, vy + 50, 4, 8 - passo*2);
+    ctx.fillRect(vx + 16, vy + 50, 4, 6 + passo*2);
+  }
+  // Lua sinistra
+  ctx.fillStyle = '#fcc';
+  ctx.beginPath(); ctx.arc(W - 100, 80, 40, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0a0a20';
+  ctx.beginPath(); ctx.arc(W - 80, 70, 35, 0, Math.PI*2); ctx.fill();
+}
+
+function cenaHeroi(t) {
+  // Skyline ao fundo, sol no horizonte
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#102040');
+  grd.addColorStop(1, '#fa6');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Sol/lua dramático
+  ctx.fillStyle = 'rgba(255,200,40,0.4)';
+  ctx.beginPath(); ctx.arc(W/2, H - 80, 110, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fc0';
+  ctx.beginPath(); ctx.arc(W/2, H - 80, 70, 0, Math.PI*2); ctx.fill();
+  // Skyline
+  ctx.fillStyle = '#0a0a1a';
+  for (let i = 0; i < 14; i++) {
+    const bx = i * 70;
+    const bh = 50 + Math.abs(Math.sin(i * 1.7)) * 60;
+    ctx.fillRect(bx, H - bh - 20, 60, bh);
+  }
+  // Midoriya a aproximar-se: cresce com t (de 0.3 → 1.5)
+  const escala = 0.3 + Math.min(1.2, t * 0.006);
+  const hx = W/2 - 18 * escala;
+  const hy = H - 60 - 50 * escala;
+  ctx.save();
+  ctx.translate(hx, hy);
+  ctx.scale(escala, escala);
+  // Pernas
+  ctx.fillStyle = '#2a4a8a';
+  const passo = Math.floor(t/8)%2;
+  ctx.fillRect(6, 38 - passo*4, 10, 18 + passo*4);
+  ctx.fillRect(20, 38 + (passo-1)*4, 10, 18 - (passo-1)*4);
+  // Tronco
+  ctx.fillStyle = '#3a6acc';
+  ctx.fillRect(4, 18, 28, 24);
+  ctx.fillStyle = '#aaa';
+  ctx.fillRect(4, 18, 28, 4);
+  // Cabeça
+  ctx.fillStyle = '#f4d4b4';
+  ctx.fillRect(8, 4, 20, 16);
+  // Cabelo verde
+  ctx.fillStyle = '#2c8';
+  ctx.fillRect(6, 0, 24, 8);
+  // Capa esvoaçante atrás
+  const capaSwing = Math.sin(t * 0.1) * 4;
+  ctx.fillStyle = '#a22';
+  ctx.fillRect(-2 + capaSwing, 18, 6, 30);
+  ctx.fillRect(-4 + capaSwing, 24, 6, 28);
+  ctx.restore();
+}
+
+function cenaTransformacao(t) {
+  // Fundo escuro com radial dourado pulsante
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const pulso = (Math.sin(t*0.15)+1)/2;
+  const grd = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, 400);
+  grd.addColorStop(0, `rgba(255,200,40,${0.6 + pulso*0.4})`);
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Raios rotativos atrás
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.rotate(t * 0.02);
+  ctx.fillStyle = 'rgba(255,200,40,0.25)';
+  for (let i = 0; i < 12; i++) {
+    ctx.rotate(Math.PI/6);
+    ctx.fillRect(0, -300, 30, 600);
+  }
+  ctx.restore();
+  // Midoriya em close-up — armadura aparece pelas partes
+  const escala = 4;
+  const x0 = W/2 - 18 * escala;
+  const y0 = H/2 - 28 * escala;
+  ctx.save();
+  ctx.translate(x0, y0);
+  ctx.scale(escala, escala);
+  // Pernas (sempre)
+  ctx.fillStyle = '#2a4a8a';
+  ctx.fillRect(6, 38, 10, 18);
+  ctx.fillRect(20, 38, 10, 18);
+  // Tronco aparece em t > 30
+  if (t > 20) {
+    ctx.fillStyle = '#3a6acc';
+    ctx.fillRect(4, 18, 28, 24);
+  }
+  // Faixa metálica em t > 50
+  if (t > 50) {
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(4, 18, 28, 4);
+    ctx.fillRect(4, 30, 28, 3);
+  }
+  // Cabeça (sempre)
+  ctx.fillStyle = '#f4d4b4';
+  ctx.fillRect(8, 4, 20, 16);
+  // Cabelo verde (sempre)
+  ctx.fillStyle = '#2c8';
+  ctx.fillRect(6, 0, 24, 8);
+  ctx.fillRect(4, 2, 4, 8);
+  ctx.fillRect(28, 2, 4, 8);
+  // Olhos
+  ctx.fillStyle = '#000';
+  ctx.fillRect(17, 10, 4, 4);
+  ctx.fillRect(24, 10, 4, 4);
+  // Escudo aparece em t > 100
+  if (t > 100) {
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(-4, 22, 6, 18);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(-3, 28, 4, 4);
+  }
+  ctx.restore();
+  // Flash branco intenso periódico
+  if (Math.floor(t/30)%2 === 0 && t < 130) {
+    ctx.fillStyle = `rgba(255,255,255,${0.3 - (t%30)/100})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
 const HISTORIA = [
-  { img: 'menu',   tom: '#1a0a2a',
-    texto: 'Há muito tempo... a cidade vivia em paz.' },
-  { img: 'vilao',  tom: '#2a0010',
-    texto: 'Até que UM VILÃO invadiu tudo.' },
-  { img: 'vilao',  tom: '#400010',
-    texto: 'Espalhou o caos.\nTrouxe a morte e a destruição.' },
-  { img: 'base',   tom: '#100020',
-    texto: 'Numa zona escondida da cidade, construiu a sua base secreta.' },
-  { img: 'base',   tom: '#100010',
-    texto: 'Os habitantes esconderam-se com medo.\nNinguém ajuda o herói.\nSó outros vilões apoiam o vilão.' },
-  { img: 'heroi',  tom: '#0a1a30',
-    texto: 'Mas um único herói se levanta contra a escuridão...' },
-  { img: 'heroi',  tom: '#0a2030',
-    texto: 'MIDORIYA.\nVeste a armadura.\nDefende a cidade.' },
+  { texto: 'Há muito tempo... a cidade vivia em paz.', cena: cenaPaz },
+  { texto: 'Até que UM VILÃO invadiu tudo.', cena: cenaInvasao },
+  { texto: 'Espalhou o caos.\nTrouxe a morte e a destruição.', cena: cenaCaos },
+  { texto: 'Numa zona escondida da cidade,\nconstruiu a sua base secreta.', cena: cenaBase },
+  { texto: 'Os habitantes esconderam-se com medo.\nNinguém ajuda o herói.\nSó outros vilões apoiam o vilão.', cena: cenaMedo },
+  { texto: 'Mas um único herói se levanta\ncontra a escuridão...', cena: cenaHeroi },
+  { texto: 'MIDORIYA.\nVeste a armadura.\nDefende a cidade.', cena: cenaTransformacao },
 ];
 let historiaSlide = 0;
 let historiaIndice = 0;
@@ -1093,6 +1436,10 @@ function iniciarFase(idx) {
   bossDerrotadoNaFase = false;
   bossIntroFeito = false;
   bossIntroTimer = 0;
+  damageNumbers = [];
+  combo = 0;
+  comboTimer = 0;
+  heroDamageFlash = 0;
   slowmoTimer = 0;
   flashTimer = 0;
   ondaPrincesa = null;
@@ -1130,6 +1477,14 @@ function loop(now) {
   }
   if (flashTimer > 0) flashTimer -= dtF;
   if (armorChangeTimer > 0) armorChangeTimer -= dtF;
+  if (heroDamageFlash > 0) heroDamageFlash -= dtF;
+  if (comboTimer > 0) { comboTimer -= dtF; if (comboTimer <= 0) combo = 0; }
+  for (const d of damageNumbers) {
+    d.y += d.vy * dtF;
+    d.vy *= Math.pow(0.94, dtF);
+    d.vida -= dtF;
+  }
+  damageNumbers = damageNumbers.filter(d => d.vida > 0);
   tempo += dtF;
   // Actualiza o estado actual e desenha
   if (estado === 'menu')      atualizarMenu();
@@ -1224,36 +1579,16 @@ function atualizarHistoria() {
   const slide = HISTORIA[historiaSlide];
   historiaSlideTimer += dtF;
 
-  // Fundo: imagem temática
-  let imgBg = null;
-  if (slide.img === 'menu' && imgMenuPronta) imgBg = imgMenu;
-  else if (slide.img === 'vilao' && imgVilaoPronto) imgBg = imgVilao;
-  else if (slide.img === 'heroi' && imgHeroiPronto) imgBg = imgHeroi;
-  else if (slide.img === 'base' && imgFases['10-base'] && imgFases['10-base'].pronto)
-    imgBg = imgFases['10-base'].img;
-
-  // KEN BURNS: zoom lento da imagem ao longo do slide (efeito documentário)
-  const zoom = 1 + historiaSlideTimer * 0.0008;
-  // Pan ligeiro lateral
-  const panX = Math.sin(historiaSlideTimer * 0.005) * 15;
-  if (imgBg) {
-    const escala = Math.max(W / imgBg.width, H / imgBg.height) * zoom;
-    const dw = imgBg.width * escala, dh = imgBg.height * escala;
-    ctx.drawImage(imgBg, (W - dw)/2 + panX, (H - dh)/2, dw, dh);
+  // CENA ANIMADA — desenha-se em função do tempo (substitui imagem estática)
+  if (slide.cena) {
+    slide.cena(historiaSlideTimer);
   } else {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   }
-  // Tom escuro por cima para contraste
-  ctx.fillStyle = slide.tom;
-  ctx.globalAlpha = 0.55;
-  ctx.fillRect(0, 0, W, H);
-  ctx.globalAlpha = 1;
 
-  // PARTÍCULAS DECORATIVAS — varia por slide
-  const corPart = slide.img === 'vilao' ? '#f44'
-                : slide.img === 'heroi' ? '#fc0'
-                : slide.img === 'base'  ? '#a0f'
-                : '#fff';
+  // PARTÍCULAS DECORATIVAS — varia por slide (cor por tema)
+  const corsPart = ['#fff','#f44','#fc0','#a0f','#fcc','#fc0','#fff'];
+  const corPart = corsPart[historiaSlide] || '#fff';
   if (Math.random() < 0.3) {
     historiaParticulas.push({
       x: Math.random() * W, y: H + 10,
@@ -1612,6 +1947,7 @@ function atualizarJogo() {
         if (ini.atingido > 0) continue;
         if (colide(hitboxAtaque, ini)) {
           ini.vida -= hitboxAtaque.dano;
+          spawnDamageNumber(ini.x + ini.w/2, ini.y, hitboxAtaque.dano);
           ini.atingido = 15;
           ini.vx = heroi.olhandoDireita ? 2 : -2;
           somDano();
@@ -1623,6 +1959,7 @@ function atualizarJogo() {
             lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
             tremerEcra(ini.chefe ? 16 : 5);
             largarPickup(ini);
+            registrarKill();
             if (ini.chefe) {
               bossDerrotadoNaFase = true;
               slowmoTimer = 36;   // ~0.6s de slow-mo
@@ -1651,6 +1988,7 @@ function atualizarJogo() {
       if (dist <= ondaPrincesa.raio) {
         ondaPrincesa.atingidos.add(ini);
         ini.vida -= ondaPrincesa.dano;
+        spawnDamageNumber(ini.x + ini.w/2, ini.y, ondaPrincesa.dano);
         ini.atingido = 12;
         ini.vx = dxi > 0 ? 4 : -4;
         ini.vy = dyi < 0 ? -3 : 0;
@@ -1662,6 +2000,7 @@ function atualizarJogo() {
           somMorte();
           lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
           tremerEcra(ini.chefe ? 16 : 5);
+            registrarKill();
           largarPickup(ini);
           if (ini.chefe) {
             bossDerrotadoNaFase = true;
@@ -1697,6 +2036,7 @@ function atualizarJogo() {
       if (ini.atingido > 0 || p.vida <= 0) continue;
       if (colide(p, ini)) {
         ini.vida -= p.dano;
+        spawnDamageNumber(ini.x + ini.w/2, ini.y, p.dano);
         ini.atingido = 12;
         ini.vx = (p.vx > 0) ? 1.5 : -1.5;
         somDano();
@@ -1709,6 +2049,7 @@ function atualizarJogo() {
           pontos += ini.pontos;
           somMorte();
           lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
+            registrarKill();
           tremerEcra(ini.chefe ? 16 : 5);
           largarPickup(ini);
           if (ini.chefe) {
@@ -1734,12 +2075,14 @@ function atualizarJogo() {
         const dyy = (ini.y + ini.h/2) - ey;
         if (Math.sqrt(dxx*dxx + dyy*dyy) < 90) {
           ini.vida -= 2;
+          spawnDamageNumber(ini.x + ini.w/2, ini.y, 2, '#fc0');
           ini.atingido = 12;
           ini.vx = dxx > 0 ? 4 : -4;
           ini.vy = -4;
           somDano();
           if (ini.vida <= 0) {
             pontos += ini.pontos; somMorte();
+            registrarKill();
             lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
             tremerEcra(ini.chefe ? 12 : 5);
             largarPickup(ini);
@@ -1789,7 +2132,7 @@ function atualizarJogo() {
     }
     // Colisão com o herói (dano por contacto, com 1s de invencibilidade)
     if (heroi.invencivel === 0 && colide(heroi, ini)) {
-      heroi.vida -= ini.dano;
+      heroi.vida -= ini.dano; heroDamageFlash = 14;
       heroi.invencivel = 60;
       heroi.vx = (heroi.x < ini.x) ? -6 : 6;
       heroi.vy = -6;
@@ -1843,7 +2186,7 @@ function atualizarJogo() {
     pe.vida -= dtF;
     // Acerta no herói?
     if (heroi.invencivel === 0 && colide(heroi, pe)) {
-      heroi.vida -= pe.dano;
+      heroi.vida -= pe.dano; heroDamageFlash = 14;
       heroi.invencivel = 60;
       heroi.vx = (pe.vx > 0) ? -5 : 5;
       heroi.vy = -5;
@@ -1918,6 +2261,7 @@ function atualizarJogo() {
   desenharHeroi();
   if (hitboxAtaque) desenharHitbox(hitboxAtaque);
   if (ondaPrincesa) desenharOndaPrincesa();
+  desenharDamageNumbers();
   ctx.restore();
   ctx.restore();
   // Iluminação dinâmica (cenas escuras): cone de luz à volta do herói.
@@ -1927,6 +2271,19 @@ function atualizarJogo() {
   if (flashTimer > 0) {
     ctx.fillStyle = `rgba(255,255,255,${Math.min(1, flashTimer/8) * 0.7})`;
     ctx.fillRect(0, 0, W, H);
+  }
+  // Tint vermelho quando o herói leva dano
+  if (heroDamageFlash > 0) {
+    ctx.fillStyle = `rgba(255,0,0,${heroDamageFlash/14 * 0.4})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // Vinheta vermelha quando vida = 1 (perigo)
+  if (heroi.vida === 1 && estado === 'jogo') {
+    const pulso = (Math.sin(tempo*0.2)+1)/2;
+    const grd = ctx.createRadialGradient(W/2, H/2, W/3, W/2, H/2, W/2 + 100);
+    grd.addColorStop(0, 'rgba(255,0,0,0)');
+    grd.addColorStop(1, `rgba(255,0,0,${0.3 + pulso*0.2})`);
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
   }
   // Cutscene de troca de armadura: brilho dourado + nome grande
   if (armorChangeTimer > 0) {
@@ -3408,26 +3765,71 @@ function desenharHitbox(hb) {
 
 /* ---------- HUD (corações, pontos) ---------- */
 function desenharHUD() {
+  // PROGRESS BAR no topo: posição do herói até ao boss
+  const f = FASES[faseAtual];
+  const startX = 200, endX = W - 200;
+  const barW = endX - startX;
+  const progresso = Math.min(1, heroi.x / Math.max(1, f.largura - 200));
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(startX - 4, 14, barW + 8, 16);
+  ctx.fillStyle = '#1a4a8a';
+  ctx.fillRect(startX, 18, barW, 8);
+  ctx.fillStyle = '#4af';
+  ctx.fillRect(startX, 18, barW * progresso, 8);
+  // Boss icon no fim (silhueta)
+  ctx.fillStyle = '#a0f';
+  ctx.fillRect(endX - 4, 12, 8, 18);
+  ctx.fillStyle = '#f44';
+  ctx.fillRect(endX - 2, 16, 4, 4);
+  // Hero icon na posição
+  const hx = startX + barW * progresso - 5;
+  ctx.fillStyle = '#2c8'; ctx.fillRect(hx, 12, 10, 4);  // cabelo verde
+  ctx.fillStyle = '#3a6acc'; ctx.fillRect(hx + 1, 16, 8, 10); // tronco
+
   // Corações
   for (let i = 0; i < heroi.vidaMax; i++) {
-    desenharCoracao(20 + i * 36, 20, i < heroi.vida);
+    desenharCoracao(20 + i * 36, 38, i < heroi.vida);
   }
   // Pontos
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 20px Courier New';
   ctx.textAlign = 'right';
-  ctx.fillText('PONTOS: ' + pontos, W - 20, 36);
+  ctx.fillText('PONTOS: ' + pontos, W - 20, 56);
   // Indicador NEW GAME+ (canto superior direito, abaixo dos pontos)
   if (nivelNG > 0) {
     ctx.fillStyle = '#f44';
     ctx.font = 'bold 14px Courier New';
-    ctx.fillText('★ NG+' + nivelNG + ' ★', W - 20, 58);
+    ctx.fillText('★ NG+' + nivelNG + ' ★', W - 20, 78);
+  }
+  // COMBO COUNTER ao centro
+  if (combo >= 2) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 28px Courier New';
+    const corCombo = combo >= 10 ? '#f0a' : combo >= 5 ? '#fc0' : '#fff';
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillText('× ' + combo + ' KILLS!', W/2 + 2, 80);
+    ctx.fillStyle = corCombo;
+    ctx.fillText('× ' + combo + ' KILLS!', W/2, 78);
   }
   // Armadura actual
   ctx.textAlign = 'left';
   ctx.font = '14px Courier New';
   ctx.fillStyle = '#aaf';
-  ctx.fillText('ARMADURA: ' + (NOME_ARMADURA[heroi.armadura] || heroi.armadura.toUpperCase()), 20, 70);
+  ctx.fillText('ARMADURA: ' + (NOME_ARMADURA[heroi.armadura] || heroi.armadura.toUpperCase()), 20, 82);
+}
+
+function desenharDamageNumbers() {
+  ctx.font = 'bold 18px Courier New';
+  ctx.textAlign = 'center';
+  for (const d of damageNumbers) {
+    const alpha = Math.min(1, d.vida / 50);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#000';
+    ctx.fillText('-' + d.valor, d.x + 2, d.y + 2);
+    ctx.fillStyle = d.cor;
+    ctx.fillText('-' + d.valor, d.x, d.y);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function desenharCoracao(x, y, cheio) {
