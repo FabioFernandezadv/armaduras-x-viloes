@@ -153,8 +153,10 @@ window.addEventListener('keydown', e => {
     else if (estado === 'menu') tocarMusica('menu');
   } else if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
     musicaVolume = Math.max(0, musicaVolume - 0.02);
+    aplicarVolumeMP3();
   } else if (e.code === 'Equal' || e.code === 'NumpadAdd') {
     musicaVolume = Math.min(0.2, musicaVolume + 0.02);
+    aplicarVolumeMP3();
   }
 });
 
@@ -316,10 +318,50 @@ let musicaIndice = 0;
 let musicaVolume = 0.06;
 let musicaMute = false;
 
+/* ---------- TRACKS MP3 (música real, sobrepõe-se à chiptune) ----------
+   Quando um tema procedural tem um MP3 mapeado aqui, toca-se o MP3 em
+   vez de gerar a melodia em código. Loop automático. */
+const TRACKS_MP3 = {
+  'fase1_casa': 'assets/fase1-musica.mp3',
+};
+const audioMP3 = {}; // cache de Audio elements
+function getAudioMP3(nome) {
+  if (!TRACKS_MP3[nome]) return null;
+  if (!audioMP3[nome]) {
+    const a = new Audio(TRACKS_MP3[nome]);
+    a.loop = true;
+    a.preload = 'auto';
+    audioMP3[nome] = a;
+  }
+  return audioMP3[nome];
+}
+function pararTodasTracks() {
+  for (const k in audioMP3) {
+    try { audioMP3[k].pause(); } catch(e) {}
+  }
+}
+function aplicarVolumeMP3() {
+  // musicaVolume vai de 0 a 0.2 (chiptune); para MP3 multiplicamos para
+  // ficar audível (~0.1 a 1.0 escala HTML5).
+  const vol = Math.min(1, musicaVolume * 6);
+  for (const k in audioMP3) {
+    try { audioMP3[k].volume = vol; } catch(e) {}
+  }
+}
+
 function tocarMusica(nome) {
   if (musicaAtual === nome) return; // já a tocar este tema
   pararMusica();
-  if (musicaMute || !MUSICA[nome]) return;
+  if (musicaMute) return;
+  // Se houver MP3 para este tema, usa-o (em vez do chiptune procedural)
+  const audio = getAudioMP3(nome);
+  if (audio) {
+    musicaAtual = nome;
+    aplicarVolumeMP3();
+    try { audio.currentTime = 0; audio.play().catch(()=>{}); } catch(e) {}
+    return;
+  }
+  if (!MUSICA[nome]) return;
   musicaAtual = nome;
   musicaIndice = 0;
   const m = MUSICA[nome];
@@ -349,6 +391,7 @@ function pararMusica() {
   if (musicaInterval) clearInterval(musicaInterval);
   musicaInterval = null;
   musicaAtual = null;
+  pararTodasTracks();
 }
 function tocarNota(freq, duracao, tipo, vol) {
   if (!audioCtx) return;
