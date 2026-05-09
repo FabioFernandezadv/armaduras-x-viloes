@@ -2500,7 +2500,7 @@ function atualizarJogo() {
       }
     }
     // Colisão com o herói (dano por contacto, com 1s de invencibilidade)
-    if (heroi.invencivel === 0 && colide(heroi, ini)) {
+    if (heroi.invencivel <= 0 && colide(heroi, ini)) {
       heroi.vida -= ini.dano; heroDamageFlash = 14;
       heroi.invencivel = 60;
       heroi.vx = (heroi.x < ini.x) ? -6 : 6;
@@ -2554,7 +2554,7 @@ function atualizarJogo() {
     pe.y += pe.vy * dtF;
     pe.vida -= dtF;
     // Acerta no herói?
-    if (heroi.invencivel === 0 && colide(heroi, pe)) {
+    if (heroi.invencivel <= 0 && colide(heroi, pe)) {
       heroi.vida -= pe.dano; heroDamageFlash = 14;
       heroi.invencivel = 60;
       heroi.vx = (pe.vx > 0) ? -5 : 5;
