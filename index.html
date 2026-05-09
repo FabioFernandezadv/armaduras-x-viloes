@@ -780,8 +780,18 @@ function carregarRetratoArmadura(id) {
   img.onload = () => imgArmaduras[id].pronto = true;
   img.onerror = () => imgArmaduras[id].pronto = false;
 }
+// Spritesheets de andar: assets/armaduras/<id>-walk.png (horizontal strip 4 frames)
+const imgArmadurasWalk = {};
+function carregarWalkArmadura(id) {
+  const img = new Image();
+  img.src = `assets/armaduras/${id}-walk.png`;
+  imgArmadurasWalk[id] = { img, pronto: false, frames: 4 };
+  img.onload = () => imgArmadurasWalk[id].pronto = true;
+  img.onerror = () => imgArmadurasWalk[id].pronto = false;
+}
 // Pré-carregar retratos (cada um faz fallback se PNG não existir)
 TODAS_ARMADURAS.forEach(carregarRetratoArmadura);
+TODAS_ARMADURAS.forEach(carregarWalkArmadura);
 
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
@@ -3582,14 +3592,27 @@ function desenharHeroi() {
     }
 
     ctx.save();
-    // Aplica todas as transformações em torno do centro do sprite
     const cxT = dx + dw/2;
     const cyT = dy + dh/2;
     ctx.translate(cxT + offX, cyT + offY);
     if (!h.olhandoDireita) ctx.scale(-1, 1);
     if (rotZ !== 0) ctx.rotate(rotZ);
     if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
-    ctx.drawImage(ret.img, -dw/2, -dh/2, dw, dh);
+
+    // SPRITESHEET DE ANDAR — se existe e está a caminhar, usa frame animado
+    const walkSheet = imgArmadurasWalk[h.armadura];
+    if (walking && walkSheet && walkSheet.pronto) {
+      const ws = walkSheet.img;
+      const fr = walkSheet.frames || 4;
+      const fw = ws.width / fr;
+      const fh = ws.height;
+      // Velocidade da animação: ~10 fps com 4 frames = ciclo de 0.4s
+      const frame = Math.floor(tempo * 0.18) % fr;
+      ctx.drawImage(ws, frame * fw, 0, fw, fh, -dw/2, -dh/2, dw, dh);
+    } else {
+      // Estático (idle, salto, etc.)
+      ctx.drawImage(ret.img, -dw/2, -dh/2, dw, dh);
+    }
     ctx.restore();
     ctx.restore(); // fecha o save() do bobOffset
     return;
