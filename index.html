@@ -2154,6 +2154,18 @@ function atualizarJogo() {
     estado = 'pausa';
     return;
   }
+  // FAILSAFE: estamos na sub-fase final (X.5) mas não há chefe vivo
+  // e o boss não foi derrotado → algo se passou, faz re-spawn defensivo.
+  if (subFase >= 4 && !bossDerrotadoNaFase && !inimigos.some(i => i.chefe)) {
+    const fonte = FASES[faseAtual].spawnInimigos().filter(i => i.chefe);
+    if (fonte.length > 0) {
+      const escalados = escalarInimigos(fonte, FASES[faseAtual].numero);
+      // Faz aparecer perto do herói
+      escalados[0].x = heroi.x + (heroi.olhandoDireita ? 700 : -700);
+      inimigos.push(...escalados);
+      bossIntroFeito = false; // dispara intro
+    }
+  }
   // BOSS INTRO: quando o herói chega perto do chefe pela primeira vez
   if (!bossIntroFeito) {
     const bossPerto = inimigos.find(i => i.chefe && Math.abs(heroi.x - i.x) < 600);
@@ -4459,6 +4471,23 @@ function desenharHUD() {
   ctx.fillStyle = '#fc0';
   ctx.font = 'bold 14px Courier New';
   ctx.fillText('FASE ' + FASES[faseAtual].numero + '.' + (subFase + 1), 20, 100);
+  // Indicador de BOSS off-screen (seta a piscar)
+  const bossAtivo = inimigos.find(i => i.chefe);
+  if (bossAtivo) {
+    const bossScreenX = bossAtivo.x - camera.x + bossAtivo.w/2;
+    const piscar = (Math.floor(tempo/10)%2);
+    if (bossScreenX > W + 20) {
+      ctx.fillStyle = piscar ? '#f44' : '#fc0';
+      ctx.font = 'bold 22px Courier New';
+      ctx.textAlign = 'right';
+      ctx.fillText('→ ' + (bossAtivo.nome || 'BOSS') + ' →', W - 20, H/2);
+      ctx.textAlign = 'left';
+    } else if (bossScreenX < -20) {
+      ctx.fillStyle = piscar ? '#f44' : '#fc0';
+      ctx.font = 'bold 22px Courier New';
+      ctx.fillText('← ' + (bossAtivo.nome || 'BOSS') + ' ←', 20, H/2);
+    }
+  }
 }
 
 function desenharDamageNumbers() {
