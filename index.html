@@ -519,6 +519,12 @@ const NOME_ARMADURA = {
   angelical: 'ANGELICAL', princesa: 'PRINCESA GUERREIRA',
   samurai: 'SAMURAI', elementar: 'ELEMENTAR ÁGUA & FOGO',
   dragao_supremo: 'DRAGÃO SUPREMO',
+  // 10 ARMADURAS DE BOSS (ganhas ao derrotar cada chefe da fase)
+  boss_dragao: 'DRAGÃO', boss_demonio: 'DEMÓNIO DE FOGO',
+  boss_comissario: 'COMISSÁRIO', boss_doutor: 'DOUTOR MUTANTE',
+  boss_shigaraki: 'SHIGARAKI', boss_glitch: 'GLITCH',
+  boss_chef: 'CHEF MUTANTE', boss_palhaco: 'PALHAÇO DO MAL',
+  boss_professor: 'PROFESSOR FANTASMA', boss_afo: 'ALL FOR ONE',
 };
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
@@ -647,6 +653,87 @@ function tentarAtacar() {
       atingidos: new Set(),
     };
     tremerEcra(6);
+  } else if (heroi.armadura === 'boss_dragao') {
+    // Sopro de dragão: esfera roxa potente, dano 2
+    som(550, 0.12, 'sawtooth', 0.15);
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy, vx: 8*dir, vy: 0,
+      w: 26, h: 26, dano: 2, vida: 110, corPrim:'#a0f', corSec:'#fff' });
+  } else if (heroi.armadura === 'boss_demonio') {
+    // 3 chamas em cone, fogo do demónio
+    som(500, 0.12, 'sawtooth', 0.15);
+    for (let i = -1; i <= 1; i++) {
+      projeteis.push({ tipo:'fogo', x: cx, y: cy + i*10, vx: 7*dir, vy: i*0.5,
+        w: 24, h: 24, dano: 1, vida: 100 });
+    }
+  } else if (heroi.armadura === 'boss_comissario') {
+    // 3 balas rápidas em rajada
+    som(800, 0.05, 'sawtooth', 0.1);
+    som(1100, 0.05, 'square', 0.08);
+    for (let i = 0; i < 3; i++) {
+      projeteis.push({ tipo:'energia_boss', x: cx + i*8*dir, y: cy + 2 + i*2, vx: 13*dir, vy: 0,
+        w: 14, h: 6, dano: 1, vida: 80, corPrim:'#666', corSec:'#fc0' });
+    }
+  } else if (heroi.armadura === 'boss_doutor') {
+    // 3 seringas em leque
+    som(1000, 0.08, 'sine', 0.1);
+    for (let i = -1; i <= 1; i++) {
+      projeteis.push({ tipo:'energia_boss', x: cx, y: cy + i*8, vx: 9*dir, vy: i*0.5,
+        w: 24, h: 6, dano: 1, vida: 100, corPrim:'#fff', corSec:'#0a8' });
+    }
+  } else if (heroi.armadura === 'boss_shigaraki') {
+    // AOE de desintegração escura — anel preto/vermelho
+    som(180, 0.18, 'sawtooth', 0.2);
+    som(80, 0.25, 'sawtooth', 0.15);
+    ondaPrincesa = {
+      cx: heroi.x + heroi.w/2, cy: heroi.y + heroi.h/2,
+      raio: 14, raioMax: 180, vida: 28, dano: 2,
+      atingidos: new Set(), shig: true,
+    };
+    tremerEcra(8);
+  } else if (heroi.armadura === 'boss_glitch') {
+    // 4 pixels coloridos com trajetória ligeiramente caótica
+    som(1500, 0.05, 'square', 0.1);
+    som(800, 0.05, 'sawtooth', 0.08);
+    const cores = ['#f0f','#0ff','#ff0','#f00'];
+    for (let i = 0; i < 4; i++) {
+      projeteis.push({ tipo:'energia_boss', x: cx, y: cy + (i-1.5)*7,
+        vx: (8 + Math.random()*2) * dir, vy: (Math.random()-0.5)*2,
+        w: 14, h: 14, dano: 1, vida: 90, corPrim: cores[i], corSec:'#fff' });
+    }
+  } else if (heroi.armadura === 'boss_chef') {
+    // 3 facas em leque (prata)
+    som(900, 0.06, 'square', 0.1);
+    som(1200, 0.05, 'sine', 0.08);
+    for (let i = -1; i <= 1; i++) {
+      projeteis.push({ tipo:'energia_boss', x: cx, y: cy + i*8, vx: 10*dir, vy: i*0.4,
+        w: 22, h: 6, dano: 1, vida: 90, corPrim:'#ddd', corSec:'#888' });
+    }
+  } else if (heroi.armadura === 'boss_palhaco') {
+    // Bomba colorida com gravidade — explode em radius ao expirar
+    som(440, 0.12, 'square', 0.12);
+    som(660, 0.1, 'triangle', 0.1);
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy - 10, vx: 6*dir, vy: -4,
+      w: 24, h: 24, dano: 2, vida: 70, comGravidade: true,
+      corPrim:'#c00', corSec:'#fc0', explosivo: true });
+  } else if (heroi.armadura === 'boss_professor') {
+    // Régua espectral longa que atravessa
+    som(700, 0.15, 'sine', 0.1);
+    som(900, 0.1, 'triangle', 0.08);
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy + 4, vx: 13*dir, vy: 0,
+      w: 56, h: 6, dano: 1, vida: 80, atravessa: true,
+      corPrim:'#fc0', corSec:'#000' });
+  } else if (heroi.armadura === 'boss_afo') {
+    // SUPREMA: feixe + esfera simultâneos, dano 2 cada
+    som(150, 0.2, 'sawtooth', 0.18);
+    som(900, 0.15, 'sine', 0.12);
+    som(1500, 0.18, 'square', 0.1);
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy + 4, vx: 16*dir, vy: 0,
+      w: 60, h: 10, dano: 2, vida: 70, atravessa: true,
+      corPrim:'#a0f', corSec:'#fff' });
+    projeteis.push({ tipo:'energia_boss', x: cx, y: cy - 14, vx: 7*dir, vy: 0,
+      w: 30, h: 30, dano: 2, vida: 100,
+      corPrim:'#a0f', corSec:'#fff' });
+    tremerEcra(6);
   } else if (heroi.armadura === 'dragao_supremo') {
     // DRAGÃO SUPREMO: cicla 4 mega-ataques (todos os poderes + tornado).
     const tipoDg = ['mega_chama', 'mega_gelo', 'tornado', 'onda_dragao'][heroi.dragaoCounter];
@@ -754,7 +841,7 @@ const FASES = [
       criarDragao(1700),
     ],
     plataformas: [P(420, 80), P(820, 130, 100), P(1280, 100)],
-    recompensa: 'ninja',
+    recompensa: 'boss_dragao',
   },
   {
     nome: 'QUARTEL DE BOMBEIROS', numero: 2, musica: 'fase2_bombeiros',
@@ -772,7 +859,7 @@ const FASES = [
       criarDragao(1950, 14, '#c40', 'DEMÓNIO DE FOGO'),
     ],
     plataformas: [P(500, 90, 100), P(900, 140, 110), P(1350, 90), P(1700, 140, 100)],
-    recompensa: 'robo',
+    recompensa: 'boss_demonio',
   },
   {
     nome: 'ESQUADRA DA POLÍCIA', numero: 3, musica: 'fase3_policia',
@@ -791,7 +878,7 @@ const FASES = [
       criarDragao(2150, 16, '#048', 'COMISSÁRIO CORRUPTO'),
     ],
     plataformas: [P(550, 100), P(950, 150, 100), P(1350, 100), P(1750, 150, 100)],
-    recompensa: null,
+    recompensa: 'boss_comissario',
   },
   {
     nome: 'HOSPITAL', numero: 4, musica: 'fase4_hospital',
@@ -810,7 +897,7 @@ const FASES = [
       criarDragao(2150, 18, '#286', 'DOUTOR MUTANTE'),
     ],
     plataformas: [P(500, 90), P(950, 140, 100), P(1400, 100), P(1800, 150, 100)],
-    recompensa: null,
+    recompensa: 'boss_doutor',
   },
   {
     nome: 'SUPERMERCADO', numero: 5, musica: 'fase5_supermercado',
@@ -829,7 +916,7 @@ const FASES = [
       criarShigarakiBoss(2400),
     ],
     plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100)],
-    recompensa: null,
+    recompensa: 'boss_shigaraki',
   },
   {
     nome: 'FLIPERAMA', numero: 6, musica: 'fase6_fliperama', largura: 2400,
@@ -848,7 +935,7 @@ const FASES = [
       criarDragao(2200, 20, '#608', 'GLITCH BOSS'),
     ],
     plataformas: [P(500, 100), P(950, 150, 100), P(1400, 100), P(1850, 150, 100)],
-    recompensa: 'mago_fogo',
+    recompensa: 'boss_glitch',
   },
   {
     nome: 'RESTAURANTE', numero: 7, musica: 'fase7_restaurante', largura: 2500,
@@ -867,7 +954,7 @@ const FASES = [
       criarDragao(2250, 22, '#822', 'CHEF MUTANTE'),
     ],
     plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1850, 150, 100)],
-    recompensa: 'mago_gelo',
+    recompensa: 'boss_chef',
   },
   {
     nome: 'McDONALD\'S', numero: 8, musica: 'fase8_mcdonalds', largura: 2500,
@@ -887,7 +974,7 @@ const FASES = [
       criarDragao(2300, 24, '#c00', 'PALHAÇO DO MAL'),
     ],
     plataformas: [P(500, 100), P(950, 150, 100), P(1400, 100), P(1850, 150, 100), P(2150, 100)],
-    recompensa: 'mago_terra',
+    recompensa: 'boss_palhaco',
   },
   {
     nome: 'ESCOLA', numero: 9, musica: 'fase9_escola', largura: 2600,
@@ -907,7 +994,7 @@ const FASES = [
       criarDragao(2350, 26, '#063', 'PROFESSOR FANTASMA'),
     ],
     plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2200, 100)],
-    recompensa: 'mago_vento',
+    recompensa: 'boss_professor',
   },
   {
     nome: 'BASE DOS VILÕES', numero: 10, musica: 'fase10_base', largura: 2800,
@@ -928,7 +1015,7 @@ const FASES = [
       criarAllForOne(2550),
     ],
     plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2300, 100)],
-    recompensa: 'angelical',
+    recompensa: 'boss_afo',
     finalDoJogo: true,
   },
 ];
@@ -1488,6 +1575,39 @@ function atualizarJogo() {
         // Atravessa: feixe, vento, laser (não gasta vida do projéctil)
         if (!p.atravessa && p.tipo !== 'laser') p.vida = 0;
       }
+    }
+  }
+  // BOMBAS EXPLOSIVAS (palhaço) — quando expiram, dano em área
+  for (const p of projeteis) {
+    if (p.explosivo && p.vida <= 0 && !p.jaExplodiu) {
+      p.jaExplodiu = true;
+      const ex = p.x + p.w/2, ey = p.y + p.h/2;
+      // Dano radial
+      for (const ini of inimigos) {
+        if (ini.atingido > 0) continue;
+        const dxx = (ini.x + ini.w/2) - ex;
+        const dyy = (ini.y + ini.h/2) - ey;
+        if (Math.sqrt(dxx*dxx + dyy*dyy) < 90) {
+          ini.vida -= 2;
+          ini.atingido = 12;
+          ini.vx = dxx > 0 ? 4 : -4;
+          ini.vy = -4;
+          somDano();
+          if (ini.vida <= 0) {
+            pontos += ini.pontos; somMorte();
+            lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
+            tremerEcra(ini.chefe ? 12 : 5);
+            largarPickup(ini);
+            if (ini.chefe) { bossDerrotadoNaFase = true; slowmoTimer = 36; flashTimer = 8; }
+          }
+        }
+      }
+      // VFX da explosão
+      lancarParticulas(ex, ey, '#fc0', 20, 6);
+      lancarParticulas(ex, ey, '#f00', 14, 5);
+      tremerEcra(8);
+      som(80, 0.2, 'sawtooth', 0.2);
+      som(120, 0.18, 'square', 0.15);
     }
   }
   // Remove projécteis que saíram do mundo ou expiraram
@@ -2288,7 +2408,18 @@ function desenharHeroi() {
   else if (h.armadura === 'princesa')    { corPernas = '#fc0';    corTronco = '#fc0';    corDetalhe = '#fff'; }
   else if (h.armadura === 'samurai')     { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fff'; }
   else if (h.armadura === 'elementar')   { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fc0'; }
-  else /* dragao_supremo */              { corPernas = '#063';    corTronco = '#0a4';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'dragao_supremo') { corPernas = '#063'; corTronco = '#0a4';    corDetalhe = '#fc0'; }
+  // 10 ARMADURAS DE BOSS
+  else if (h.armadura === 'boss_dragao')      { corPernas = '#400060'; corTronco = '#7a2a8a'; corDetalhe = '#fc0'; }
+  else if (h.armadura === 'boss_demonio')     { corPernas = '#600';    corTronco = '#c40';    corDetalhe = '#ff0'; }
+  else if (h.armadura === 'boss_comissario')  { corPernas = '#001a40'; corTronco = '#048';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'boss_doutor')      { corPernas = '#063';    corTronco = '#286';    corDetalhe = '#fff'; }
+  else if (h.armadura === 'boss_shigaraki')   { corPernas = '#000';    corTronco = '#222';    corDetalhe = '#f44'; }
+  else if (h.armadura === 'boss_glitch')      { corPernas = '#306';    corTronco = '#608';    corDetalhe = '#0ff'; }
+  else if (h.armadura === 'boss_chef')        { corPernas = '#888';    corTronco = '#fff';    corDetalhe = '#a44'; }
+  else if (h.armadura === 'boss_palhaco')     { corPernas = '#400';    corTronco = '#c00';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'boss_professor')   { corPernas = '#000';    corTronco = '#063';    corDetalhe = '#fff'; }
+  else /* boss_afo */                          { corPernas = '#000';    corTronco = '#1a0030'; corDetalhe = '#a0f'; }
 
   // Pernas — animação de andar quando se move no chão
   const aMover = (h.vx !== 0) && h.noChao;
@@ -2454,6 +2585,117 @@ function desenharHeroi() {
     ctx.fillStyle = '#fff';
     ctx.fillRect(x + 10, y + 4, 2, 4);
     ctx.fillRect(x + 24, y + 4, 2, 4);
+  } else if (h.armadura === 'boss_dragao') {
+    // 2 chifres dourados + escamas no peito
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + 8, y - 10, 4, 8); ctx.fillRect(x + 24, y - 10, 4, 8);
+    // Escamas roxas claras
+    ctx.fillStyle = '#a0f';
+    ctx.fillRect(x + 14, y + 22, 4, 4); ctx.fillRect(x + 22, y + 22, 4, 4);
+    ctx.fillRect(x + 18, y + 28, 4, 4);
+  } else if (h.armadura === 'boss_demonio') {
+    // 2 chifres pretos pontiagudos + chama no peito
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 6, y - 12, 4, 8); ctx.fillRect(x + 26, y - 12, 4, 8);
+    ctx.fillRect(x + 4, y - 8, 4, 4); ctx.fillRect(x + 28, y - 8, 4, 4);
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#f80' : '#ff0';
+    ctx.fillRect(x + 14, y + 24, 8, 6);
+  } else if (h.armadura === 'boss_comissario') {
+    // Chapéu de polícia azul com aba + badge dourado
+    ctx.fillStyle = '#001a40';
+    ctx.fillRect(x + 4, y - 12, 28, 8);
+    ctx.fillRect(x - 2, y - 4, 36, 4);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + 16, y - 10, 4, 4);
+    // Badge no peito
+    ctx.fillRect(x + 14, y + 22, 8, 8);
+    ctx.fillStyle = '#001a40'; ctx.fillRect(x + 17, y + 25, 2, 2);
+  } else if (h.armadura === 'boss_doutor') {
+    // Máscara cirúrgica branca + cruz médica vermelha
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 8, y + 12, 20, 6);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(x + 16, y + 22, 4, 12);
+    ctx.fillRect(x + 12, y + 26, 12, 4);
+  } else if (h.armadura === 'boss_shigaraki') {
+    // Cabelo branco + mão pálida no peito
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 4, y - 6, 28, 12);
+    ctx.fillRect(x + 4, y + 6, 4, 8); ctx.fillRect(x + 28, y + 6, 4, 8);
+    // Mão na cara (over the eyes)
+    ctx.fillStyle = '#d4c5a0';
+    ctx.fillRect(x + 8, y + 7, 20, 8);
+    ctx.fillStyle = '#000';
+    for (let i = 0; i < 3; i++) ctx.fillRect(x + 10 + i*6, y + 7, 2, 6);
+  } else if (h.armadura === 'boss_glitch') {
+    // Pixels coloridos a piscar em vez de detalhe normal
+    const cs = ['#f0f','#0ff','#ff0','#0f4'];
+    ctx.fillStyle = cs[Math.floor(tempo/3) % 4];
+    ctx.fillRect(x + 4, y + 22, 6, 6);
+    ctx.fillStyle = cs[(Math.floor(tempo/3) + 1) % 4];
+    ctx.fillRect(x + 14, y + 26, 6, 6);
+    ctx.fillStyle = cs[(Math.floor(tempo/3) + 2) % 4];
+    ctx.fillRect(x + 24, y + 22, 6, 6);
+    // Olhos pixelados (substituem os normais)
+    ctx.fillStyle = '#0ff';
+    ctx.fillRect(x + 10, y + 8, 4, 4);
+    ctx.fillStyle = '#f0f';
+    ctx.fillRect(x + 22, y + 8, 4, 4);
+  } else if (h.armadura === 'boss_chef') {
+    // Chapéu de chef branco em 3 níveis
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 4, y - 16, 28, 8);
+    ctx.fillRect(x + 8, y - 24, 20, 8);
+    ctx.fillRect(x + 12, y - 28, 12, 4);
+    // Avental com mancha vermelha
+    ctx.fillStyle = '#a44';
+    ctx.fillRect(x + 14, y + 26, 6, 6);
+  } else if (h.armadura === 'boss_palhaco') {
+    // Chapéu pontiagudo amarelo
+    ctx.fillStyle = '#fc0';
+    ctx.beginPath();
+    ctx.moveTo(x + h.w/2, y - 18);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x + h.w - 4, y);
+    ctx.closePath(); ctx.fill();
+    // Pompom rosa no topo
+    ctx.fillStyle = '#f0a';
+    ctx.fillRect(x + h.w/2 - 3, y - 22, 6, 6);
+    // Nariz vermelho redondo
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(x + 16, y + 14, 4, 4);
+  } else if (h.armadura === 'boss_professor') {
+    // Óculos brancos com bordo preto
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 8, y + 9, 20, 4);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x + 10, y + 10, 6, 2);
+    ctx.fillRect(x + 20, y + 10, 6, 2);
+    // Régua amarela com marcas no peito
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + 12, y + 22, 14, 3);
+    ctx.fillStyle = '#000';
+    for (let i = 0; i < 5; i++) ctx.fillRect(x + 13 + i*3, y + 22, 1, 3);
+  } else if (h.armadura === 'boss_afo') {
+    // Máscara metálica AFO + tubos + olhos vermelhos pulsantes
+    ctx.fillStyle = '#444';
+    ctx.fillRect(x + 4, y - 8, 28, 18);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(x, y - 4, 4, 12);
+    ctx.fillRect(x + h.w - 4, y - 4, 4, 12);
+    ctx.fillStyle = '#666';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(x, y - 4 + i*4, 4, 2);
+      ctx.fillRect(x + h.w - 4, y - 4 + i*4, 4, 2);
+    }
+    // Olhos vermelhos pulsantes
+    const ib = (Math.sin(tempo*0.2)+1)/2;
+    ctx.fillStyle = `rgb(255,${Math.floor(60*ib)},${Math.floor(60*ib)})`;
+    ctx.fillRect(x + 10, y - 2, 5, 6);
+    ctx.fillRect(x + 21, y - 2, 5, 6);
+    // Aura roxa no peito
+    ctx.fillStyle = 'rgba(160,0,255,0.4)';
+    ctx.fillRect(x + 4, y + 18, 28, 24);
   } else if (h.armadura === 'samurai') {
     // SAMURAI: faixa branca + ELMO KABUTO com chifres dourados em meia-lua
     ctx.fillStyle = '#fff';
@@ -2784,10 +3026,12 @@ function desenharAFOBoss(ini) {
 const GLOW_PROJ = {
   shuriken:'#fff', laser:'#0ff', fogo:'#f80', gelo:'#cef',
   terra:'#963', vento:'#9f9', pena:'#fc0', chama_azul:'#08f', feixe:'#ffe',
-  fogo_dual:'#f44', agua_dual:'#48f', tornado:'#cce'
+  fogo_dual:'#f44', agua_dual:'#48f', tornado:'#cce',
+  energia_boss:'#fff' // glow vai usar p.corPrim em vez disto
 };
 function desenharProjectil(p) {
-  ctx.shadowColor = GLOW_PROJ[p.tipo] || '#fff';
+  // Glow usa cor primária do projéctil se for tipo genérico (energia_boss)
+  ctx.shadowColor = (p.tipo === 'energia_boss' && p.corPrim) ? p.corPrim : (GLOW_PROJ[p.tipo] || '#fff');
   ctx.shadowBlur = 14;
   desenharProjectilInterno(p);
   ctx.shadowBlur = 0;
@@ -2930,6 +3174,27 @@ function desenharProjectilInterno(p) {
     ctx.fillRect(p.x, p.y, p.w, p.h);
     ctx.fillStyle = '#fff';
     ctx.fillRect(p.x, p.y + p.h/2 - 1, p.w, 3);
+  } else if (p.tipo === 'energia_boss') {
+    // Render genérico para os 10 ataques de armaduras-de-boss.
+    // Usa p.corPrim e p.corSec definidas no momento do disparo.
+    ctx.fillStyle = p.corPrim;
+    if (Math.abs(p.w - p.h) < 4) {
+      // Forma circular (esfera, pixel, bomba)
+      ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = p.corSec;
+      ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/3, 0, Math.PI*2); ctx.fill();
+      // Brilho branco extra
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(p.x + 4, p.y + p.h/2 - 1, 2, 2);
+    } else {
+      // Forma alongada (bala, faca, régua, feixe)
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.fillStyle = p.corSec;
+      ctx.fillRect(p.x, p.y + p.h/2 - 1, p.w, 2);
+      // Pontas brilhantes
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(p.x + p.w - 4, p.y, 4, p.h);
+    }
   }
 }
 
@@ -2948,9 +3213,14 @@ function desenharOndaPrincesa() {
     ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2); ctx.stroke();
     ctx.strokeStyle = '#0c4';
     ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio - 4, 0, Math.PI*2); ctx.stroke();
-    // Núcleo branco
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio * 0.8, 0, Math.PI*2); ctx.stroke();
+  } else if (o.shig) {
+    // ONDA SHIGARAKI: anéis preto/vermelho sangue (desintegração)
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 9;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#400'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio * 0.85, 0, Math.PI*2); ctx.stroke();
   } else {
     // Anel principal dourado (Princesa)
     ctx.strokeStyle = '#fc0'; ctx.lineWidth = 8;
@@ -2960,7 +3230,9 @@ function desenharOndaPrincesa() {
   }
   // Faíscas a sair (cor consoante o tipo)
   ctx.globalAlpha = alpha * 0.6;
-  const corFaisca = o.tricolor ? ['#f44','#48f','#0c4'] : ['#f8c'];
+  const corFaisca = o.tricolor ? ['#f44','#48f','#0c4']
+                  : o.shig    ? ['#400','#000','#600']
+                  : ['#f8c'];
   for (let a = 0; a < Math.PI*2; a += Math.PI/8) {
     ctx.fillStyle = corFaisca[Math.floor(a*3) % corFaisca.length];
     const px = o.cx + Math.cos(a) * o.raio;
