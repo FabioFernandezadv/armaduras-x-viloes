@@ -417,8 +417,8 @@ const heroi = {
   invencivel: 0, // frames de invencibilidade após levar dano
   olhandoDireita: true,
   armadura: 'cavaleiro',
-  // Armaduras já desbloqueadas (todas, para o Luís experimentar).
-  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa','samurai','elementar','dragao_supremo'],
+  // Apenas Cavaleiro desbloqueado de início. As outras compram-se na loja.
+  armadurasDesbloqueadas: ['cavaleiro'],
   voando: false,             // Angelical e Dragão Supremo: activam com duplo-clique
   ultimoSaltoTime: -100,
   angelicalCounter: 0,       // cicla 3 ataques: pena → chama azul → feixe
@@ -567,14 +567,56 @@ let heroDamageFlash = 0;         // tint vermelho ao levar dano
 let subFase = 0;                 // 0..4 dentro da fase actual (1.1, 1.2, ..., 1.5)
 let subFaseTransicaoTimer = 0;   // frames de overlay "FASE X.Y"
 let selecaoIndex = 0;            // selecção no ecrã de armaduras
+let coins = 0;                   // moedas acumuladas (compradas armaduras)
+let lojaMensagem = '';           // mensagem temporária na loja
+let lojaMensagemTimer = 0;
+
+// Preço das armaduras (cavaleiro grátis no início)
+const PRECO_ARMADURA = {
+  cavaleiro: 0,
+  ninja: 50, robo: 100,
+  mago_fogo: 100, mago_gelo: 150, mago_terra: 200, mago_vento: 250,
+  princesa: 300, samurai: 350, elementar: 400,
+  angelical: 700, dragao_supremo: 1500,
+  // Armaduras de boss (só desbloqueadas comprando)
+  boss_dragao: 200, boss_demonio: 250, boss_comissario: 300,
+  boss_doutor: 400, boss_shigaraki: 800, boss_glitch: 350,
+  boss_chef: 450, boss_palhaco: 600, boss_professor: 700, boss_afo: 2000,
+};
+
+// Lista canónica de TODAS as armaduras (para a loja mostrar tudo, vendido ou não)
+const TODAS_ARMADURAS = [
+  'cavaleiro','ninja','robo',
+  'mago_fogo','mago_gelo','mago_terra','mago_vento',
+  'princesa','samurai','elementar','angelical','dragao_supremo',
+  'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
+  'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
+];
+
+// Recompensa em moedas por inimigo derrotado
+function moedasPorInimigo(ini) {
+  if (ini.tipo === 'shigaraki' || ini.tipo === 'afo') return 500;
+  if (ini.chefe) return 200;
+  if (ini.tipo === 'subboss') return 50;
+  if (ini.tipo === 'voador') return 5;
+  return 2; // monstro normal
+}
 function spawnDamageNumber(x, y, dano, cor) {
   if (!cor) cor = dano >= 3 ? '#f44' : dano >= 2 ? '#fc0' : '#fff';
+  // dano pode ser number (dano) OU string já formatada (ex: '+10c' para moedas)
+  const texto = typeof dano === 'string' ? dano : '-' + dano;
   damageNumbers.push({ x: x + (Math.random()-0.5)*10, y: y - 8,
-    vy: -2.5, vida: 50, valor: dano, cor });
+    vy: -2.5, vida: 50, valor: texto, cor });
 }
-function registrarKill() {
+function registrarKill(ini) {
   combo++;
   comboTimer = 100;
+  if (ini) {
+    const moedas = moedasPorInimigo(ini);
+    coins += moedas;
+    // Damage number-style flutuante mas em dourado para mostrar moedas ganhas
+    spawnDamageNumber(ini.x + ini.w/2 + 20, ini.y + 10, '+' + moedas + 'c', '#fc0');
+  }
 }
 let bossIntroTimer = 0;          // frames de duração da intro
 let bossIntroFala = '';          // frase do boss (varia por chefe)
@@ -603,6 +645,7 @@ function guardarSave(faseProxima) {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       faseProxima,
       pontos,
+      coins,
       armaduras: heroi.armadurasDesbloqueadas,
       armaduraEquipada: heroi.armadura,
       nivelNG,
@@ -623,6 +666,7 @@ function aplicarSave(save) {
   heroi.armadurasDesbloqueadas = save.armaduras;
   heroi.armadura = save.armaduraEquipada;
   pontos = save.pontos;
+  coins = save.coins || 0;
   nivelNG = save.nivelNG || 0;
 }
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
@@ -1623,6 +1667,8 @@ function atualizarMenu() {
     // Apaga save e começa do princípio (NG0, armaduras de partida)
     apagarSave();
     nivelNG = 0;
+    coins = 0;
+    heroi.armadurasDesbloqueadas = ['cavaleiro'];
     heroi.armadura = 'cavaleiro';
     historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
     historiaSlideTimer = 0; historiaParticulas = []; historiaFadeOut = 0;
@@ -1818,11 +1864,39 @@ function atualizarCutscene() {
   }
 }
 
-/* ---------- ESTADO: SELECÇÃO DE ARMADURA ---------- */
+/* ---------- ESTADO: SELECÇÃO DE ARMADURA + LOJA ---------- */
+// Render de preview (mini-herói) com determinada armadura, sem mexer no estado real.
+function desenharHeroiPreview(x, y, armadura, escala) {
+  escala = escala || 0.7;
+  const _arm = heroi.armadura, _x = heroi.x, _y = heroi.y;
+  const _vx = heroi.vx, _vy = heroi.vy, _atk = heroi.ataqueAtivo;
+  const _inv = heroi.invencivel, _voa = heroi.voando, _olh = heroi.olhandoDireita;
+  const _trail = heroi.trail, _noChao = heroi.noChao;
+  // Estado neutro para preview limpo
+  heroi.armadura = armadura;
+  heroi.x = 0; heroi.y = 0;
+  heroi.vx = 0; heroi.vy = 0;
+  heroi.ataqueAtivo = 0;
+  heroi.invencivel = 0;
+  heroi.voando = false;
+  heroi.olhandoDireita = true;
+  heroi.trail = [];
+  heroi.noChao = true;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(escala, escala);
+  desenharHeroi();
+  ctx.restore();
+  // Restaurar estado original
+  heroi.armadura = _arm; heroi.x = _x; heroi.y = _y;
+  heroi.vx = _vx; heroi.vy = _vy; heroi.ataqueAtivo = _atk;
+  heroi.invencivel = _inv; heroi.voando = _voa; heroi.olhandoDireita = _olh;
+  heroi.trail = _trail; heroi.noChao = _noChao;
+}
+
 function atualizarSelecaoArmadura() {
-  // Fundo escuro
-  ctx.fillStyle = 'rgba(10,10,30,0.95)'; ctx.fillRect(0, 0, W, H);
-  // Estrelas decorativas
+  // Fundo escuro com estrelas
+  ctx.fillStyle = 'rgba(10,10,30,0.97)'; ctx.fillRect(0, 0, W, H);
   for (let i = 0; i < 40; i++) {
     const sx = (i * 137) % W, sy = (i * 53) % H;
     ctx.globalAlpha = 0.2 + (Math.sin(tempo*0.05 + i) + 1) * 0.15;
@@ -1831,20 +1905,21 @@ function atualizarSelecaoArmadura() {
   }
   ctx.globalAlpha = 1;
 
+  // Cabeçalho
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fc0';
-  ctx.font = 'bold 30px Courier New';
-  ctx.fillText('ESCOLHE A ARMADURA', W/2, 50);
-  ctx.fillStyle = '#aaa';
-  ctx.font = '14px Courier New';
-  ctx.fillText('Setas para navegar  ·  ENTER para começar a fase ' + FASES[faseAtual].numero, W/2, 78);
+  ctx.font = 'bold 26px Courier New';
+  ctx.fillText('ARMADURAS — FASE ' + FASES[faseAtual].numero, W/2, 32);
+  // Saldo de moedas (centro-direita)
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 18px Courier New';
+  ctx.fillText('🪙 ' + coins + ' moedas', W/2, 56);
 
-  const arms = heroi.armadurasDesbloqueadas;
-  const cols = 4;
-  const cellW = 200, cellH = 70;
-  const rows = Math.ceil(arms.length / cols);
+  const arms = TODAS_ARMADURAS;
+  const cols = 6;
+  const cellW = 150, cellH = 110;
   const startX = W/2 - cols * cellW / 2;
-  const startY = 105;
+  const startY = 75;
 
   for (let i = 0; i < arms.length; i++) {
     const col = i % cols;
@@ -1852,25 +1927,63 @@ function atualizarSelecaoArmadura() {
     const cx = startX + col * cellW;
     const cy = startY + row * cellH;
     const sel = (i === selecaoIndex);
-    // Caixa
-    ctx.fillStyle = sel ? '#fc0' : 'rgba(255,255,255,0.08)';
-    ctx.fillRect(cx + 6, cy + 6, cellW - 12, cellH - 12);
+    const armId = arms[i];
+    const desbloqueada = heroi.armadurasDesbloqueadas.includes(armId);
+    const preco = PRECO_ARMADURA[armId] || 0;
+    const podeComprar = coins >= preco;
+
+    // Caixa de fundo
+    ctx.fillStyle = sel ? '#fc0' : (desbloqueada ? 'rgba(80,160,80,0.18)' : 'rgba(60,60,80,0.3)');
+    ctx.fillRect(cx + 4, cy + 4, cellW - 8, cellH - 8);
     if (sel) {
       const pulso = (Math.sin(tempo*0.2)+1)/2;
       ctx.strokeStyle = `rgba(255,255,255,${0.5 + pulso*0.5})`;
       ctx.lineWidth = 4;
-      ctx.strokeRect(cx + 6, cy + 6, cellW - 12, cellH - 12);
+      ctx.strokeRect(cx + 4, cy + 4, cellW - 8, cellH - 8);
     }
-    // Nome da armadura
-    ctx.fillStyle = sel ? '#000' : '#fff';
-    ctx.font = sel ? 'bold 14px Courier New' : '12px Courier New';
-    ctx.fillText(NOME_ARMADURA[arms[i]] || arms[i].toUpperCase(), cx + cellW/2, cy + cellH/2 + 5);
+    // Preview do herói com aquela armadura
+    desenharHeroiPreview(cx + cellW/2 - 14, cy + 8, armId, 0.7);
+    // Overlay escuro nas armaduras bloqueadas
+    if (!desbloqueada) {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(cx + 4, cy + 4, cellW - 8, cellH - 8);
+      // Cadeado
+      ctx.fillStyle = '#fc0';
+      ctx.font = 'bold 24px Courier New';
+      ctx.fillText('🔒', cx + cellW/2, cy + 50);
+    }
+    // Nome
+    ctx.fillStyle = sel ? '#000' : (desbloqueada ? '#fff' : '#aaa');
+    ctx.font = 'bold 10px Courier New';
+    ctx.fillText(NOME_ARMADURA[armId] || armId.toUpperCase(), cx + cellW/2, cy + cellH - 22);
+    // Preço ou status
+    if (!desbloqueada) {
+      ctx.fillStyle = podeComprar ? '#4f4' : '#f44';
+      ctx.font = 'bold 11px Courier New';
+      ctx.fillText('🪙 ' + preco, cx + cellW/2, cy + cellH - 8);
+    } else {
+      ctx.fillStyle = sel ? '#000' : '#4f4';
+      ctx.font = 'bold 10px Courier New';
+      ctx.fillText('✓ DESBLOQUEADA', cx + cellW/2, cy + cellH - 8);
+    }
+  }
+
+  // Mensagem temporária da loja
+  if (lojaMensagemTimer > 0) {
+    lojaMensagemTimer -= dtF;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(W/2 - 200, H - 90, 400, 36);
+    ctx.fillStyle = '#fc0';
+    ctx.font = 'bold 16px Courier New';
+    ctx.fillText(lojaMensagem, W/2, H - 65);
   }
 
   // Prompt em baixo
-  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fc0' : '#888';
-  ctx.font = 'bold 18px Courier New';
-  ctx.fillText('▶ ENTER para entrar na fase ◀', W/2, H - 30);
+  ctx.fillStyle = '#888';
+  ctx.font = '13px Courier New';
+  ctx.fillText('Setas = navegar · ENTER = ' + (
+    heroi.armadurasDesbloqueadas.includes(arms[selecaoIndex]) ? 'EQUIPAR e iniciar fase' : 'COMPRAR'
+  ) + ' · Q = entrar com a actual', W/2, H - 30);
 
   // Navegação
   if (teclasJustNow['ArrowLeft']  || teclasJustNow['KeyA']) {
@@ -1892,13 +2005,40 @@ function atualizarSelecaoArmadura() {
     som(440, 0.04);
   }
 
-  if (teclasJustNow['Enter']) {
-    heroi.armadura = arms[selecaoIndex];
-    armorChangeTimer = 36;
-    armorChangeName = NOME_ARMADURA[heroi.armadura];
+  // Q: usa armadura actual e entra
+  if (teclasJustNow['KeyQ']) {
     estado = 'jogo';
     som(880, 0.15);
-    som(1100, 0.18, 'sine', 0.1);
+    return;
+  }
+
+  // ENTER: comprar ou equipar
+  if (teclasJustNow['Enter']) {
+    const armId = arms[selecaoIndex];
+    if (heroi.armadurasDesbloqueadas.includes(armId)) {
+      // Já desbloqueada → equipar e iniciar fase
+      heroi.armadura = armId;
+      armorChangeTimer = 36;
+      armorChangeName = NOME_ARMADURA[armId];
+      estado = 'jogo';
+      som(880, 0.15); som(1100, 0.18, 'sine', 0.1);
+    } else {
+      // Bloqueada → tentar comprar
+      const preco = PRECO_ARMADURA[armId] || 0;
+      if (coins >= preco) {
+        coins -= preco;
+        heroi.armadurasDesbloqueadas.push(armId);
+        heroi.armadura = armId; // equipa a recém-comprada
+        lojaMensagem = '★ ' + (NOME_ARMADURA[armId] || armId) + ' COMPRADA! ★';
+        lojaMensagemTimer = 90;
+        som(660, 0.1); som(880, 0.12, 'sine'); som(1320, 0.15, 'square', 0.1);
+        guardarSave(faseAtual);
+      } else {
+        lojaMensagem = '⚠ Moedas insuficientes — precisas de ' + (preco - coins) + ' a mais';
+        lojaMensagemTimer = 90;
+        som(150, 0.1, 'sawtooth');
+      }
+    }
   }
 }
 
@@ -2093,7 +2233,7 @@ function atualizarJogo() {
             lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
             tremerEcra(ini.chefe ? 16 : 5);
             largarPickup(ini);
-            registrarKill();
+            registrarKill(ini);
             if (ini.chefe) {
               bossDerrotadoNaFase = true;
               slowmoTimer = 36;   // ~0.6s de slow-mo
@@ -2134,7 +2274,7 @@ function atualizarJogo() {
           somMorte();
           lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
           tremerEcra(ini.chefe ? 16 : 5);
-            registrarKill();
+            registrarKill(ini);
           largarPickup(ini);
           if (ini.chefe) {
             bossDerrotadoNaFase = true;
@@ -2183,7 +2323,7 @@ function atualizarJogo() {
           pontos += ini.pontos;
           somMorte();
           lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
-            registrarKill();
+            registrarKill(ini);
           tremerEcra(ini.chefe ? 16 : 5);
           largarPickup(ini);
           if (ini.chefe) {
@@ -2216,7 +2356,7 @@ function atualizarJogo() {
           somDano();
           if (ini.vida <= 0) {
             pontos += ini.pontos; somMorte();
-            registrarKill();
+            registrarKill(ini);
             lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
             tremerEcra(ini.chefe ? 12 : 5);
             largarPickup(ini);
@@ -2254,6 +2394,19 @@ function atualizarJogo() {
     if (ini.tipo === 'voador') {
       ini.fase += 0.08 * dtF;
       ini.y = ini.yBase + Math.sin(ini.fase) * 30;
+      // FIX: se um voador se afastar demasiado (perdeu o herói),
+      // teletransporta-o de volta para perto. Evita que sub-fases nunca terminem.
+      const dxV = heroi.x - ini.x;
+      if (Math.abs(dxV) > 1300) {
+        ini.x = heroi.x + (heroi.olhandoDireita ? 700 : -700);
+        ini.y = ini.yBase;
+      }
+    }
+    // FIX (defensivo): qualquer inimigo muito longe do herói (não chefe)
+    // que esteja preso, é teletransportado para perto também.
+    const distH = Math.abs(heroi.x - ini.x);
+    if (!ini.chefe && distH > 1800) {
+      ini.x = heroi.x + (heroi.olhandoDireita ? 800 : -800);
     }
     // Chefe: dispara projéctil periodicamente quando o herói está perto.
     if (ini.chefe) {
@@ -2371,12 +2524,9 @@ function atualizarJogo() {
     somVitoria();
     inimigos = [];
     projeteisInimigo = [];
-    const recompensa = FASES[faseAtual].recompensa;
-    if (recompensa && !heroi.armadurasDesbloqueadas.includes(recompensa)) {
-      heroi.armadurasDesbloqueadas.push(recompensa);
-      // Equipa automaticamente a nova armadura para o jogador a ver
-      heroi.armadura = recompensa;
-    }
+    // Bónus de moedas grande por completar a fase!
+    const bonusFase = 100 + faseAtual * 50;
+    coins += bonusFase;
   }
 
   // 7. Câmara
@@ -2863,7 +3013,22 @@ function desenharCenarioHospital() {
 /* ---- FASE 5: SUPERMERCADO ---- */
 function desenharCenarioSupermercado() {
   if (desenharFundoFase('5-supermercado')) return;
-  ctx.fillStyle = '#fff8e0'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Gradiente vivo de fluorescente — bege topo + branco amarelado em baixo
+  const grdSup = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grdSup.addColorStop(0, '#ffd');
+  grdSup.addColorStop(1, '#fff');
+  ctx.fillStyle = grdSup; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Faixa do tecto com luzes fluorescentes pisca
+  ctx.fillStyle = (Math.floor(tempo/30)%6) ? '#fff' : '#ffe';
+  ctx.fillRect(0, 0, W, 30);
+  // Tubos de luz
+  for (let i = 0; i < 8; i++) {
+    const lx = (i * 220) - Math.floor(camera.x * 0.5) % 220;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(lx, 8, 80, 4);
+    ctx.fillStyle = '#ff8';
+    ctx.fillRect(lx + 4, 9, 72, 2);
+  }
   // Prateleiras com produtos coloridos
   desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
     ctx.fillStyle = '#aaa'; ctx.fillRect(jx, 120, 200, 260);
@@ -2883,19 +3048,47 @@ function desenharCenarioSupermercado() {
     ctx.textAlign = 'center';
     ctx.fillText('PROMOÇÃO', jx + 100, 113);
   }, 400, 0.5);
-  // Carrinhos abandonados (paralaxe completa)
+  // Carrinhos abandonados (paralaxe completa) com produtos derramados
   ctx.save();
   ctx.translate(-Math.floor(camera.x), 0);
   for (let kx = 300; kx < FASES[faseAtual].largura; kx += 600) {
-    ctx.fillStyle = '#ccc'; ctx.fillRect(kx, CHAO_Y - 40, 50, 30);
+    // Carrinho metálico
+    ctx.fillStyle = '#aaa'; ctx.fillRect(kx, CHAO_Y - 50, 60, 36);
+    ctx.fillStyle = '#666'; ctx.fillRect(kx, CHAO_Y - 50, 60, 4);
     ctx.fillStyle = '#888';
-    for (let i = 0; i < 4; i++) ctx.fillRect(kx + i*16, CHAO_Y - 40, 2, 30);
+    for (let i = 0; i < 5; i++) ctx.fillRect(kx + i*14, CHAO_Y - 46, 2, 32);
+    // Pega vermelha
+    ctx.fillStyle = '#c22'; ctx.fillRect(kx + 60, CHAO_Y - 60, 18, 6);
+    ctx.fillRect(kx + 78, CHAO_Y - 60, 4, 14);
+    // Rodas
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(kx + 8, CHAO_Y - 5, 6, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(kx + 42, CHAO_Y - 5, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(kx + 10, CHAO_Y - 5, 7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(kx + 50, CHAO_Y - 5, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#444';
+    ctx.beginPath(); ctx.arc(kx + 10, CHAO_Y - 5, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(kx + 50, CHAO_Y - 5, 3, 0, Math.PI*2); ctx.fill();
+    // Produtos espalhados ao redor
+    ctx.fillStyle = '#f44'; ctx.fillRect(kx + 80, CHAO_Y - 12, 12, 12); // lata
+    ctx.fillStyle = '#fc0'; ctx.fillRect(kx - 18, CHAO_Y - 14, 14, 14); // pacote
+    ctx.fillStyle = '#4f4'; ctx.fillRect(kx - 32, CHAO_Y - 8, 8, 8);     // maçã
+  }
+  // Sangue/manchas no chão (atmosfera)
+  ctx.fillStyle = '#a44';
+  for (let mx = 600; mx < FASES[faseAtual].largura; mx += 400) {
+    ctx.fillRect(mx, CHAO_Y - 4, 60, 4);
+    ctx.fillRect(mx + 20, CHAO_Y - 8, 30, 4);
   }
   ctx.restore();
-  desenharChao('#e8d8a8', '#a89868');
+  // Chão de azulejos com xadrez vermelho/branco
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, CHAO_Y, W, H - CHAO_Y);
+  const offset = -Math.floor(camera.x) % 80;
+  for (let x = offset; x < W; x += 80) {
+    ctx.fillStyle = (Math.floor((x - offset)/80) % 2) ? '#fff' : '#fcc';
+    ctx.fillRect(x, CHAO_Y, 40, H - CHAO_Y);
+    ctx.fillStyle = (Math.floor((x - offset)/80) % 2) ? '#fcc' : '#fff';
+    ctx.fillRect(x + 40, CHAO_Y, 40, H - CHAO_Y);
+  }
 }
 
 /* ============================================================
@@ -3607,12 +3800,13 @@ function desenharInimigo(ini) {
       ctx.fillRect(ini.x - 12, ini.y + 10, 14, 30);
       ctx.fillRect(ini.x + ini.w - 2, ini.y + 10, 14, 30);
     } else if (ini.tipo === 'voador') {
-      // Asas a bater (oscilam com tempo)
       const bater = Math.sin(tempo*0.4) * 4;
       ctx.fillStyle = piscar ? '#fff' : '#fc6';
       ctx.fillRect(ini.x - 10, ini.y + 4 + bater, 12, 8);
       ctx.fillRect(ini.x + ini.w - 2, ini.y + 4 + bater, 12, 8);
     }
+    // ACESSÓRIOS ESPECÍFICOS POR NOME (identidade visual de cada chefe)
+    if (ini.chefe && !piscar) desenharAcessorioBoss(ini);
   }
 
   // Barra de vida (chefe)
@@ -3625,6 +3819,154 @@ function desenharInimigo(ini) {
       ctx.font = 'bold 12px Courier New';
       ctx.textAlign = 'left';
       ctx.fillText(ini.nome, ini.x, ini.y - 20);
+    }
+  }
+}
+
+// Acessórios específicos por nome de boss — adiciona identidade visual.
+function desenharAcessorioBoss(ini) {
+  const x = ini.x, y = ini.y, w = ini.w, h = ini.h;
+  switch (ini.nome) {
+    case 'DRAGÃO': {
+      // Coroa de chifres dourados + escamas
+      ctx.fillStyle = '#fc0';
+      ctx.fillRect(x + 8, y - 12, 6, 10); ctx.fillRect(x + w - 14, y - 12, 6, 10);
+      ctx.fillRect(x + w/2 - 3, y - 16, 6, 8);
+      // Escamas vermelhas no peito
+      ctx.fillStyle = '#c00';
+      for (let s = 0; s < 4; s++) ctx.fillRect(x + 18 + (s%2)*8, y + 22 + s*4, 4, 3);
+      // Sopro de fogo na boca
+      ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#f80' : '#fc0';
+      ctx.fillRect(x + 10, y + h - 14, 8, 6);
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(x + 6, y + h - 12, 4, 4);
+      break;
+    }
+    case 'DEMÓNIO DE FOGO': {
+      // Chifres pretos pontiagudos
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x + 4, y - 14, 6, 10); ctx.fillRect(x + w - 10, y - 14, 6, 10);
+      ctx.fillRect(x + 2, y - 8, 4, 4); ctx.fillRect(x + w - 6, y - 8, 4, 4);
+      // Chamas a sair do corpo
+      const ch = Math.abs(Math.sin(tempo*0.15)) * 6 + 4;
+      ctx.fillStyle = '#f80';
+      ctx.fillRect(x - 4, y + 12, 6, ch);
+      ctx.fillRect(x + w - 2, y + 12, 6, ch);
+      ctx.fillStyle = '#ff0';
+      ctx.fillRect(x - 2, y + 14, 4, ch - 2);
+      ctx.fillRect(x + w, y + 14, 4, ch - 2);
+      break;
+    }
+    case 'COMISSÁRIO CORRUPTO': {
+      // Chapéu de polícia azul-escuro
+      ctx.fillStyle = '#001a40';
+      ctx.fillRect(x + 6, y - 14, w - 12, 10);
+      ctx.fillRect(x, y - 4, w, 4);
+      // Badge dourado central
+      ctx.fillStyle = '#fc0';
+      ctx.fillRect(x + w/2 - 4, y - 12, 8, 6);
+      // Estrela do badge
+      ctx.fillStyle = '#001a40';
+      ctx.fillRect(x + w/2 - 1, y - 10, 2, 2);
+      // Algemas penduradas no cinto
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath(); ctx.arc(x + 12, y + h - 6, 5, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x + w - 12, y + h - 6, 5, 0, Math.PI*2); ctx.stroke();
+      break;
+    }
+    case 'DOUTOR MUTANTE': {
+      // Máscara cirúrgica branca (cobre a metade inferior do rosto)
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + 6, y + h/2 - 4, w - 12, 8);
+      // Cordões da máscara nas orelhas
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 6, y + h/2);
+      ctx.quadraticCurveTo(x - 4, y + 4, x, y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + w - 6, y + h/2);
+      ctx.quadraticCurveTo(x + w + 4, y + 4, x + w, y);
+      ctx.stroke();
+      // Cruz vermelha no peito
+      ctx.fillStyle = '#f00';
+      ctx.fillRect(x + w/2 - 2, y + 16, 4, 14);
+      ctx.fillRect(x + w/2 - 7, y + 21, 14, 4);
+      // Bisturi a brilhar na mão
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 6, y + h - 12, 8, 2);
+      break;
+    }
+    case 'GLITCH BOSS': {
+      // Pixels coloridos a piscar por todo o corpo
+      const cs = ['#f0f','#0ff','#ff0','#0f4'];
+      for (let g = 0; g < 8; g++) {
+        const gx = x + 4 + (g * 11) % (w - 8);
+        const gy = y + 8 + ((g * 7) % (h - 16));
+        ctx.fillStyle = cs[(g + Math.floor(tempo/4)) % 4];
+        ctx.fillRect(gx, gy, 4, 4);
+      }
+      // "Linhas de glitch" horizontais
+      ctx.fillStyle = '#0ff';
+      const ly = y + 14 + (Math.floor(tempo/8) % (h - 28));
+      ctx.fillRect(x - 2, ly, w + 4, 2);
+      break;
+    }
+    case 'CHEF MUTANTE': {
+      // Chapéu de chef branco
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + 8, y - 18, w - 16, 12);
+      ctx.fillRect(x + 14, y - 28, w - 28, 10);
+      ctx.fillRect(x + 18, y - 32, w - 36, 4);
+      // Avental com mancha de sangue
+      ctx.fillStyle = '#a44';
+      ctx.fillRect(x + 14, y + 22, 8, 10);
+      // Faca brilhante
+      ctx.fillStyle = '#ddd';
+      ctx.fillRect(x - 12, y + h/2, 12, 3);
+      ctx.fillStyle = '#400';
+      ctx.fillRect(x - 4, y + h/2 - 1, 4, 5);
+      break;
+    }
+    case 'PALHAÇO DO MAL': {
+      // Chapéu pontiagudo amarelo
+      ctx.fillStyle = '#fc0';
+      ctx.beginPath();
+      ctx.moveTo(x + w/2, y - 22);
+      ctx.lineTo(x + 6, y - 4);
+      ctx.lineTo(x + w - 6, y - 4);
+      ctx.closePath(); ctx.fill();
+      // Pompom rosa no topo
+      ctx.fillStyle = '#f0a';
+      ctx.fillRect(x + w/2 - 4, y - 26, 8, 8);
+      // Nariz vermelho gigante
+      ctx.fillStyle = '#f00';
+      ctx.beginPath(); ctx.arc(x + w/2, y + 14, 6, 0, Math.PI*2); ctx.fill();
+      // Bochechas pintadas
+      ctx.fillStyle = '#f0a';
+      ctx.fillRect(x + 4, y + 14, 5, 5);
+      ctx.fillRect(x + w - 9, y + 14, 5, 5);
+      break;
+    }
+    case 'PROFESSOR FANTASMA': {
+      // Aura espectral à volta (transparência azul)
+      ctx.fillStyle = 'rgba(150,200,255,0.25)';
+      ctx.fillRect(x - 10, y - 10, w + 20, h + 20);
+      // Óculos brancos com bordo preto
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + 8, y + 8, w - 16, 6);
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x + 10, y + 10, 8, 2);
+      ctx.fillRect(x + w - 18, y + 10, 8, 2);
+      // Régua amarela com marcas
+      ctx.fillStyle = '#fc0';
+      ctx.fillRect(x - 18, y + h/2, 20, 4);
+      ctx.fillStyle = '#000';
+      for (let r = 0; r < 5; r++) ctx.fillRect(x - 16 + r*4, y + h/2, 1, 4);
+      // Toga académica preta
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x + 4, y + 28, w - 8, 6);
+      break;
     }
   }
 }
@@ -3955,11 +4297,15 @@ function desenharHUD() {
   ctx.font = 'bold 20px Courier New';
   ctx.textAlign = 'right';
   ctx.fillText('PONTOS: ' + pontos, W - 20, 56);
-  // Indicador NEW GAME+ (canto superior direito, abaixo dos pontos)
+  // Saldo de moedas (logo abaixo)
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 16px Courier New';
+  ctx.fillText('🪙 ' + coins, W - 20, 78);
+  // Indicador NEW GAME+
   if (nivelNG > 0) {
     ctx.fillStyle = '#f44';
     ctx.font = 'bold 14px Courier New';
-    ctx.fillText('★ NG+' + nivelNG + ' ★', W - 20, 78);
+    ctx.fillText('★ NG+' + nivelNG + ' ★', W - 20, 100);
   }
   // COMBO COUNTER ao centro
   if (combo >= 2) {
@@ -3989,9 +4335,9 @@ function desenharDamageNumbers() {
     const alpha = Math.min(1, d.vida / 50);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = '#000';
-    ctx.fillText('-' + d.valor, d.x + 2, d.y + 2);
+    ctx.fillText(d.valor, d.x + 2, d.y + 2);
     ctx.fillStyle = d.cor;
-    ctx.fillText('-' + d.valor, d.x, d.y);
+    ctx.fillText(d.valor, d.x, d.y);
   }
   ctx.globalAlpha = 1;
 }
