@@ -745,17 +745,24 @@ function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade;
 // Larga um pickup quando um inimigo morre. Probabilidades:
 // 12% coração (+1 vida), 35% moeda (+25 pontos), resto = nada.
 function largarPickup(ini) {
-  const r = Math.random();
   const x = ini.x + ini.w/2 - 12;
   const y = ini.y + ini.h/2;
-  if (r < 0.12) {
-    pickups.push({ tipo:'coracao', x, y, w:24, h:22, vy: -3, vida: 600, fase: 0 });
-  } else if (r < 0.47) {
-    pickups.push({ tipo:'moeda', x, y, w:18, h:18, vy: -3, vida: 600, fase: 0 });
+  // 💗 CADA INIMIGO LARGA UM CORAÇÃO (sempre) — cura 1 ou dá +50 pts se vida cheia
+  pickups.push({ tipo:'coracao', x, y, w:24, h:22, vy: -3, vida: 600, fase: 0 });
+  // 🪙 35% chance de moeda bonus (independente)
+  if (Math.random() < 0.35) {
+    pickups.push({ tipo:'moeda', x: x + 30, y, w:18, h:18, vy: -3, vida: 600, fase: 0.3 });
   }
-  // Chefe larga sempre 1 coração extra (boss bonus)
+  // Chefe: 1 coração EXTRA (já garantido) + 50% chance de outro
   if (ini.chefe) {
-    pickups.push({ tipo:'coracao', x: x + 30, y, w:24, h:22, vy: -4, vida: 600, fase: 0.5 });
+    pickups.push({ tipo:'coracao', x: x + 50, y, w:24, h:22, vy: -4, vida: 600, fase: 0.5 });
+    if (Math.random() < 0.5) {
+      pickups.push({ tipo:'coracao', x: x - 30, y, w:24, h:22, vy: -4, vida: 600, fase: 0.7 });
+    }
+  }
+  // Sub-chefe: 100% chance de moeda extra (recompensa decente)
+  if (ini.tipo === 'subboss') {
+    pickups.push({ tipo:'moeda', x: x - 30, y, w:18, h:18, vy: -3, vida: 600, fase: 0 });
   }
 }
 
