@@ -3526,33 +3526,70 @@ function desenharHeroi() {
 
   // ════════════════════════════════════════════════════════
   // SE HÁ PNG-RETRATO PARA ESTA ARMADURA: usa-o em vez de geometria.
-  // Faz mirror horizontal consoante a direcção. Salta o resto.
+  // Aplica transformações dinâmicas para simular animação (walk bounce,
+  // jump squash, attack lunge, fly float) — dá vida à imagem estática.
   // ════════════════════════════════════════════════════════
   const ret = imgArmaduras[h.armadura];
   if (ret && ret.pronto) {
-    // Tamanho on-screen: um pouco maior que o hitbox para ficar visível
-    const dh = h.h * 1.6;            // 56 * 1.6 ≈ 90 px
+    const dh = h.h * 1.6;
     const ratio = ret.img.width / ret.img.height;
     const dw = dh * ratio;
     const dx = h.x + h.w/2 - dw/2;
-    const dy = h.y + h.h - dh;       // alinha pelos pés
-    ctx.save();
-    if (!h.olhandoDireita) {
-      // Espelha horizontalmente
-      ctx.translate(dx + dw, 0);
-      ctx.scale(-1, 1);
-      ctx.translate(-dx, 0);
+    const dy = h.y + h.h - dh;
+
+    // ── Animação dinâmica via transforms ──
+    let scaleX = 1, scaleY = 1, rotZ = 0;
+    let offX = 0, offY = 0;
+
+    const walking = h.noChao && Math.abs(h.vx) > 0.5;
+    const noAr = !h.noChao && !h.voando;
+
+    if (walking) {
+      // Walk bounce: pula a cada passo
+      offY -= Math.abs(Math.sin(tempo * 0.32)) * 4;
+      // Pequeno tilt para a frente
+      rotZ = (h.olhandoDireita ? 1 : -1) * Math.sin(tempo * 0.32) * 0.03;
+      // Squash/stretch leve a cada passo
+      const squash = Math.sin(tempo * 0.64) * 0.04;
+      scaleX = 1 - squash;
+      scaleY = 1 + squash;
     }
-    // Pequena escala extra durante o ataque (impacto visual)
+    if (noAr) {
+      if (h.vy < -3) {
+        // A subir: estica para cima (sente o impulso)
+        scaleY = 1.12; scaleX = 0.92;
+      } else if (h.vy > 3) {
+        // A cair: comprime
+        scaleY = 0.94; scaleX = 1.06;
+      }
+    }
+    if (h.voando) {
+      // Voo: flutuar suavemente
+      offY += Math.sin(tempo * 0.2) * 3;
+      rotZ = Math.sin(tempo * 0.15) * 0.05;
+    }
     if (h.ataqueAtivo > 0) {
-      const punch = 1 + (h.ataqueAtivo / 12) * 0.08;
-      const cxA = dx + dw/2;
-      const cyA = dy + dh/2;
-      ctx.translate(cxA, cyA);
-      ctx.scale(punch, punch);
-      ctx.translate(-cxA, -cyA);
+      // Attack lunge: avanço breve + scale punch
+      const t = h.ataqueAtivo / 12;
+      offX += (h.olhandoDireita ? 1 : -1) * t * 6;
+      const punch = 1 + t * 0.10;
+      scaleX *= punch;
+      scaleY *= punch;
     }
-    ctx.drawImage(ret.img, dx, dy, dw, dh);
+    if (h.invencivel > 30) {
+      // Recoil/shake quando levou dano (só no início da invencibilidade)
+      offX += (Math.random() - 0.5) * 4;
+    }
+
+    ctx.save();
+    // Aplica todas as transformações em torno do centro do sprite
+    const cxT = dx + dw/2;
+    const cyT = dy + dh/2;
+    ctx.translate(cxT + offX, cyT + offY);
+    if (!h.olhandoDireita) ctx.scale(-1, 1);
+    if (rotZ !== 0) ctx.rotate(rotZ);
+    if (scaleX !== 1 || scaleY !== 1) ctx.scale(scaleX, scaleY);
+    ctx.drawImage(ret.img, -dw/2, -dh/2, dw, dh);
     ctx.restore();
     ctx.restore(); // fecha o save() do bobOffset
     return;
