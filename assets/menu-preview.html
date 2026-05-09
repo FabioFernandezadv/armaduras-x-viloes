@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8"/>
+<title>ARMADURAS X VILÕES — Menu</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Bebas+Neue&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --canvas-w: 960px;
+    --canvas-h: 540px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #08070d;
+    color: #e8e2d2;
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+  }
+  .stage {
+    position: relative;
+    width: var(--canvas-w);
+    height: var(--canvas-h);
+    box-shadow: 0 30px 80px rgba(255, 60, 30, 0.18), 0 0 0 1px rgba(255,255,255,0.06);
+    overflow: hidden;
+    transform-origin: center center;
+  }
+  .stage img.bg {
+    width: 100%; height: 100%;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+  }
+
+  /* TITLE STACK — sits in the title-safe band (top-center, ~40% h) */
+  .title-block {
+    position: absolute;
+    top: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    pointer-events: none;
+    width: 720px;
+  }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.42em;
+    color: #ffb84a;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    text-shadow: 0 0 12px rgba(255,120,30,0.6);
+  }
+  .title {
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
+    font-size: 76px;
+    line-height: 0.92;
+    letter-spacing: 0.02em;
+    color: #ffe9b8;
+    text-shadow:
+      0 0 1px #fff,
+      0 2px 0 #6a3a08,
+      0 4px 0 #4a2606,
+      0 6px 0 #2a1604,
+      0 8px 18px rgba(0,0,0,0.7),
+      0 0 30px rgba(255, 100, 30, 0.45);
+  }
+  .title .x {
+    display: inline-block;
+    color: #ff3a2a;
+    font-size: 86px;
+    margin: 0 8px;
+    text-shadow:
+      0 0 12px rgba(255, 60, 30, 0.85),
+      0 0 28px rgba(255, 30, 0, 0.55),
+      0 4px 0 #5a0808,
+      0 8px 16px rgba(0,0,0,0.6);
+    transform: translateY(4px);
+  }
+  .underline {
+    margin: 14px auto 0;
+    width: 320px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #f0c040 20%, #ffe9b8 50%, #f0c040 80%, transparent);
+    box-shadow: 0 0 10px rgba(240, 192, 64, 0.55);
+  }
+
+  /* MENU ITEMS over the bottom (just for context) */
+  .menu {
+    position: absolute;
+    left: 50%;
+    bottom: 22px;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .menu .item {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.32em;
+    color: #f0e2c0;
+    padding: 4px 24px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+    position: relative;
+  }
+  .menu .item.active {
+    color: #fff4c8;
+    text-shadow: 0 0 12px rgba(255, 200, 60, 0.85), 0 0 22px rgba(255, 100, 30, 0.6), 0 2px 4px #000;
+  }
+  .menu .item.active::before,
+  .menu .item.active::after {
+    content: "◆";
+    color: #f0c040;
+    margin: 0 10px;
+    font-size: 14px;
+    vertical-align: middle;
+    text-shadow: 0 0 8px rgba(240, 192, 64, 0.8);
+  }
+
+  .footer-note {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    font-size: 10px;
+    color: #7a6a58;
+    letter-spacing: 0.2em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .badge {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    font-size: 10px;
+    color: #7a6a58;
+    letter-spacing: 0.2em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* Subtle press flicker */
+  .press {
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.4em;
+    color: #c8b888;
+    animation: blink 1.6s ease-in-out infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <img class="bg" src="assets/menu-bg.png" alt="Menu background"/>
+
+    <div class="title-block">
+      <div class="eyebrow">um jogo de acção 2D</div>
+      <div class="title">ARMADURAS<span class="x">×</span>VILÕES</div>
+      <div class="underline"></div>
+    </div>
+
+    <div class="menu">
+      <div class="item active">JOGAR</div>
+      <div class="item">MULTIJOGADOR</div>
+      <div class="item">OPÇÕES</div>
+      <div class="item">SAIR</div>
+      <div class="press">PRIME ENTER</div>
+    </div>
+  </div>
+
+  <div class="badge">PREVIEW · 960×540</div>
+  <div class="footer-note">assets/menu-bg.png</div>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8"/>
+<title>Cutscene — Herói × Vilão</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Bebas+Neue&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #06070d;
+    color: #e8e2d2;
+    font-family: 'JetBrains Mono', monospace;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+  }
+  .stage {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(58,102,216,0.18), transparent 60%),
+      radial-gradient(ellipse at 70% 80%, rgba(200,24,24,0.22), transparent 60%),
+      linear-gradient(180deg, #06061a 0%, #1a0a18 60%, #3a0a0e 100%);
+    overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.06);
+  }
+
+  /* Letterbox bars */
+  .bar {
+    position: absolute; left: 0; right: 0;
+    height: 60px;
+    background: #000;
+    z-index: 10;
+  }
+  .bar.top { top: 0; }
+  .bar.bottom { bottom: 0; }
+
+  /* Diagonal split shimmer */
+  .vs-bolt {
+    position: absolute;
+    top: 60px; bottom: 60px;
+    left: 50%;
+    width: 6px;
+    transform: translateX(-50%) skewX(-8deg);
+    background: linear-gradient(180deg, transparent, #f0c040 30%, #ff4030 70%, transparent);
+    box-shadow: 0 0 20px rgba(255, 100, 30, 0.6);
+    z-index: 4;
+  }
+  .vs-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Cinzel', serif;
+    font-size: 96px;
+    font-weight: 900;
+    color: #ffe9b8;
+    text-shadow:
+      0 0 1px #fff,
+      0 4px 0 #6a3a08,
+      0 8px 0 #2a1604,
+      0 12px 24px rgba(0,0,0,0.7),
+      0 0 30px rgba(255,100,30,0.6);
+    z-index: 6;
+    pointer-events: none;
+    letter-spacing: 0.04em;
+  }
+  .vs-label .x {
+    color: #ff3a2a;
+    font-size: 120px;
+    text-shadow:
+      0 0 14px rgba(255,60,30,0.95),
+      0 0 30px rgba(255,30,0,0.55),
+      0 6px 0 #5a0808;
+  }
+
+  /* Portrait panels */
+  .panel {
+    position: absolute;
+    top: 60px;
+    bottom: 60px;
+    width: 50%;
+    display: grid;
+    grid-template-rows: 1fr auto;
+    align-items: end;
+    overflow: hidden;
+  }
+  .panel.left { left: 0; }
+  .panel.right { right: 0; }
+
+  .portrait-wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .portrait {
+    width: 560px; height: 560px;
+    image-rendering: -webkit-optimize-contrast;
+    filter: drop-shadow(0 24px 30px rgba(0,0,0,0.65));
+    animation: float 4.5s ease-in-out infinite;
+  }
+  .panel.right .portrait { animation-delay: 1.8s; }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Backdrop accents per character */
+  .panel.left .portrait-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(80,120,232,0.35), transparent 55%),
+      radial-gradient(ellipse at 50% 80%, rgba(240,192,64,0.18), transparent 60%);
+    pointer-events: none;
+  }
+  .panel.right .portrait-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(200,24,24,0.4), transparent 55%),
+      radial-gradient(ellipse at 50% 90%, rgba(0,0,0,0.6), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Streaks */
+  .streaks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .streaks span {
+    position: absolute;
+    width: 240px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+    transform: skewX(-25deg);
+  }
+  .panel.left .streaks span:nth-child(1) { top: 18%; left: -10%; }
+  .panel.left .streaks span:nth-child(2) { top: 38%; left: -20%; width: 320px; opacity: 0.6; }
+  .panel.left .streaks span:nth-child(3) { top: 70%; left: -10%; width: 200px; opacity: 0.4; }
+  .panel.right .streaks span:nth-child(1) { top: 22%; right: -10%; background: linear-gradient(90deg, rgba(255,80,40,0.6), transparent); }
+  .panel.right .streaks span:nth-child(2) { top: 50%; right: -20%; width: 320px; background: linear-gradient(90deg, rgba(255,80,40,0.4), transparent); }
+  .panel.right .streaks span:nth-child(3) { top: 78%; right: -10%; width: 200px; background: linear-gradient(90deg, rgba(255,80,40,0.3), transparent); }
+
+  /* Name plates */
+  .nameplate {
+    position: relative;
+    z-index: 5;
+    margin: 0 24px 18px;
+    padding: 14px 18px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(0,0,0,0.55) 70%, transparent);
+    border-left: 4px solid #f0c040;
+    backdrop-filter: blur(4px);
+  }
+  .panel.right .nameplate {
+    background: linear-gradient(270deg, rgba(0,0,0,0.85), rgba(0,0,0,0.55) 70%, transparent);
+    border-left: none;
+    border-right: 4px solid #c81818;
+    text-align: right;
+  }
+  .nameplate .role {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.42em;
+    text-transform: uppercase;
+    color: #c8b888;
+  }
+  .panel.left .nameplate .role { color: #a8c8ff; }
+  .panel.right .nameplate .role { color: #ff8070; }
+  .nameplate .name {
+    font-family: 'Cinzel', serif;
+    font-weight: 900;
+    font-size: 30px;
+    letter-spacing: 0.06em;
+    color: #ffe9b8;
+    margin-top: 2px;
+  }
+  .panel.right .nameplate .name { color: #ffd0c8; }
+  .nameplate .quote {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 0.18em;
+    color: #cfc8b0;
+    margin-top: 4px;
+  }
+
+  /* Bottom HUD line */
+  .hud {
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.36em;
+    color: #c8b888;
+  }
+  .hud .dot { width: 6px; height: 6px; background: #f0c040; box-shadow: 0 0 10px #f0c040; }
+
+  .badge {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    font-size: 10px;
+    color: #7a6a58;
+    letter-spacing: 0.2em;
+  }
+  .footer-note {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    font-size: 10px;
+    color: #7a6a58;
+    letter-spacing: 0.2em;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="bar top"></div>
+    <div class="bar bottom"></div>
+
+    <!-- LEFT: HERO -->
+    <div class="panel left">
+      <div class="portrait-wrap">
+        <div class="streaks"><span></span><span></span><span></span></div>
+        <img class="portrait" src="assets/retrato-heroi.png" alt="Herói"/>
+      </div>
+      <div class="nameplate">
+        <div class="role">HERÓI · cavaleiro</div>
+        <div class="name">HERÓI</div>
+        <div class="quote">— "Não recuo. Nem agora, nem nunca."</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: VILLAIN -->
+    <div class="panel right">
+      <div class="portrait-wrap">
+        <div class="streaks"><span></span><span></span><span></span></div>
+        <img class="portrait" src="assets/retrato-vilao.png" alt="Vilão"/>
+      </div>
+      <div class="nameplate">
+        <div class="role">VILÃO · arauto da ruína</div>
+        <div class="name">VILÃO</div>
+        <div class="quote">— "Tudo o que tocas, desfaz-se."</div>
+      </div>
+    </div>
+
+    <!-- Center divider + VS -->
+    <div class="vs-bolt"></div>
+    <div class="vs-label">VS</div>
+
+    <div class="hud">
+      <span class="dot"></span>
+      <span>CUTSCENE · 02 — CONFRONTO</span>
+      <span class="dot"></span>
+    </div>
+  </div>
+
+  <div class="badge">PREVIEW · 1280×720</div>
+  <div class="footer-note">retrato-heroi.png · retrato-vilao.png</div>
+</body>
+</html>

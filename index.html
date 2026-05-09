@@ -1,0 +1,2362 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Armaduras X Vilões</title>
+<style>
+  /* ====== ESTILOS ======
+     Layout simples: ecrã preto, canvas centrado, sem scroll. */
+  html, body { margin: 0; padding: 0; background: #000; height: 100%; overflow: hidden;
+    font-family: 'Courier New', monospace; color: #fff;
+    -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; touch-action: none; }
+  body { display: flex; align-items: center; justify-content: center; }
+  canvas { background: #1a1a2e; image-rendering: pixelated; box-shadow: 0 0 30px #4af;
+    max-width: 100vw; max-height: 100vh; }
+  #ajuda { position: fixed; bottom: 6px; left: 8px; font-size: 12px; color: #888; }
+
+  /* ====== CONTROLOS TÁCTILIS (telemóvel / iPad) ======
+     Botões só aparecem em ecrãs táctilis (regra @media). */
+  #touch { position: fixed; inset: 0; pointer-events: none; display: none; }
+  .btn { position: absolute; pointer-events: auto;
+    background: rgba(255,255,255,0.15); border: 2px solid rgba(255,255,255,0.4);
+    color: #fff; font-family: 'Courier New', monospace; font-weight: bold;
+    border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-tap-highlight-color: transparent; }
+  .btn:active { background: rgba(255,255,255,0.4); }
+  .btn.sq { border-radius: 14px; }
+  /* D-pad esquerdo */
+  #bEsq { left: 20px; bottom: 80px; width: 80px; height: 80px; font-size: 36px; }
+  #bDir { left: 120px; bottom: 80px; width: 80px; height: 80px; font-size: 36px; }
+  /* Acções direita */
+  #bSalt { right: 130px; bottom: 140px; width: 80px; height: 80px; font-size: 28px;
+           background: rgba(80,160,255,0.3); border-color: #4af; }
+  #bAtq  { right: 30px;  bottom: 80px;  width: 90px; height: 90px; font-size: 28px;
+           background: rgba(255,80,80,0.3); border-color: #f44; }
+  #bArm  { right: 30px;  bottom: 200px; width: 70px; height: 70px; font-size: 22px;
+           background: rgba(255,200,0,0.3); border-color: #fc0; }
+  #bEnter{ right: 30px;  top: 30px;     width: 80px; height: 50px; font-size: 16px;
+           background: rgba(80,255,80,0.3); border-color: #4f4; border-radius: 12px; }
+
+  /* Activa controlos só em dispositivos táctilis */
+  @media (pointer: coarse) {
+    #touch { display: block; }
+    #ajuda { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="jogo" width="960" height="540"></canvas>
+<div id="ajuda">Setas/AD = andar · W/Espaço = saltar · J/Z = atacar · K/X = trocar armadura · ENTER = avançar · R = reiniciar · M = mute música · −/+ = volume</div>
+
+<!-- Overlay de controlos táctilis (só visível em ecrã coarse pointer) -->
+<div id="touch">
+  <div class="btn"   id="bEsq"  data-key="ArrowLeft">◀</div>
+  <div class="btn"   id="bDir"  data-key="ArrowRight">▶</div>
+  <div class="btn"   id="bSalt" data-key="Space">▲</div>
+  <div class="btn"   id="bAtq"  data-key="KeyJ">⚔</div>
+  <div class="btn"   id="bArm"  data-key="KeyK">↻</div>
+  <div class="btn sq" id="bEnter" data-key="Enter">START</div>
+</div>
+
+<script>
+/* ============================================================
+   ARMADURAS X VILÕES — Fase 1 (vertical slice)
+   Tudo num só ficheiro. Comentado em português.
+   ============================================================ */
+
+const canvas = document.getElementById('jogo');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+/* ---------- ASSETS (imagens) ----------
+   Pré-carregamento de PNGs. Se não carregarem, há fallback nos
+   desenhos para que o jogo nunca fique "partido". */
+const imgMenu = new Image();
+imgMenu.src = 'assets/menu-bg.png';
+let imgMenuPronta = false;
+imgMenu.onload = () => { imgMenuPronta = true; };
+imgMenu.onerror = () => { imgMenuPronta = false; };
+
+const imgVilao = new Image(); imgVilao.src = 'assets/retrato-vilao.png';
+let imgVilaoPronto = false;
+imgVilao.onload = () => { imgVilaoPronto = true; };
+
+const imgHeroi = new Image(); imgHeroi.src = 'assets/retrato-heroi.png';
+let imgHeroiPronto = false;
+imgHeroi.onload = () => { imgHeroiPronto = true; };
+
+// Fundos pintados das fases (Etapa 3 — gradual). Cada um carrega async,
+// se algum falhar o jogo cai automaticamente no desenho geométrico.
+const imgFases = {};
+function carregarFundoFase(nome) {
+  const img = new Image();
+  img.src = `assets/fase${nome}-bg.png`;
+  imgFases[nome] = { img, pronto: false };
+  img.onload = () => imgFases[nome].pronto = true;
+  img.onerror = () => imgFases[nome].pronto = false;
+}
+['1-casa','2-bombeiros','3-policia','4-hospital','5-supermercado',
+ '6-fliperama','7-restaurante','8-mcdonalds','9-escola','10-base'].forEach(carregarFundoFase);
+
+// Desenha um PNG repetido horizontalmente para cobrir a largura do ecrã.
+function desenharFundoFase(nome) {
+  const dados = imgFases[nome];
+  if (!dados || !dados.pronto) return false;
+  const imgW = dados.img.width;
+  let dx = -(Math.floor(camera.x) % imgW);
+  if (dx > 0) dx -= imgW;
+  while (dx < W) { ctx.drawImage(dados.img, dx, 0); dx += imgW; }
+  return true;
+}
+
+/* ---------- ESTADO GLOBAL ---------- */
+// Estados possíveis do jogo: menu, cutscene, jogo, gameover, vitoria
+let estado = 'menu';
+let pontos = 0;
+let tempo = 0; // contador de "frames-equivalentes-a-60fps" para animações
+
+// Delta-time: medimos quanto tempo passou desde o último frame e
+// convertemos para um factor "1 = 60fps". Velocidades e timers
+// são multiplicados por este factor → o jogo corre à mesma
+// velocidade em ecrãs de 60Hz, 120Hz ou 144Hz.
+let lastTime = 0;
+let dtF = 1; // factor delta normalizado
+
+/* ---------- INPUT (teclado) ---------- */
+// Mapa de teclas pressionadas neste momento
+const teclas = {};
+// Teclas que foram premidas neste frame (one-shot, p/ atacar, saltar, ENTER)
+const teclasJustNow = {};
+window.addEventListener('keydown', e => {
+  if (!teclas[e.code]) teclasJustNow[e.code] = true;
+  teclas[e.code] = true;
+});
+window.addEventListener('keyup', e => { teclas[e.code] = false; });
+
+// Controlos da música: M = mute toggle, − = baixar volume, + = subir volume
+window.addEventListener('keydown', e => {
+  if (e.code === 'KeyM') {
+    musicaMute = !musicaMute;
+    if (musicaMute) pararMusica();
+    else if (estado === 'menu') tocarMusica('menu');
+  } else if (e.code === 'Minus' || e.code === 'NumpadSubtract') {
+    musicaVolume = Math.max(0, musicaVolume - 0.02);
+  } else if (e.code === 'Equal' || e.code === 'NumpadAdd') {
+    musicaVolume = Math.min(0.2, musicaVolume + 0.02);
+  }
+});
+
+// ---- Controlos táctilis: cada botão simula uma tecla ----
+// touchstart = keydown, touchend/cancel = keyup. Funciona para
+// botões que precisam de pressão contínua (andar) e para os
+// one-shot (saltar, atacar, ENTER) graças ao `teclasJustNow`.
+document.querySelectorAll('#touch .btn').forEach(btn => {
+  const key = btn.dataset.key;
+  const press = (e) => {
+    e.preventDefault();
+    if (!teclas[key]) teclasJustNow[key] = true;
+    teclas[key] = true;
+    if (!audioCtx) { try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(_){} }
+  };
+  const release = (e) => { e.preventDefault(); teclas[key] = false; };
+  btn.addEventListener('touchstart', press, { passive: false });
+  btn.addEventListener('touchend',   release, { passive: false });
+  btn.addEventListener('touchcancel',release, { passive: false });
+  // Bónus: também funciona com rato em ecrãs híbridos
+  btn.addEventListener('mousedown', press);
+  btn.addEventListener('mouseup',   release);
+  btn.addEventListener('mouseleave',release);
+});
+
+/* ---------- ÁUDIO (Web Audio API) ---------- */
+// Pequeno gerador de bleeps. Criamos AudioContext só ao primeiro input
+// para cumprir as políticas dos browsers.
+let audioCtx = null;
+function som(freq, duracao, tipo='square', vol=0.15) {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = tipo; osc.frequency.value = freq;
+  g.gain.value = vol;
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start();
+  // Envelope simples: fade out
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duracao);
+  osc.stop(audioCtx.currentTime + duracao);
+}
+function somAtaque() { som(440, 0.08, 'square'); }
+
+/* ============================================================
+   MÚSICA CHIPTUNE PROCEDURAL
+   Sequenciador de 2 vozes (melodia + baixo) gerado em código.
+   5 temas: menu, fase, boss, vitória, game over.
+   ============================================================ */
+const NOTAS = {
+  'C2': 65.41,'D2': 73.42,'E2': 82.41,'F2': 87.31,'G2': 98,'A2': 110,'B2': 123.47,
+  'C3':130.81,'D3':146.83,'E3':164.81,'F3':174.61,'G3':196,'A3':220,'B3':246.94,
+  'C4':261.63,'D4':293.66,'E4':329.63,'F4':349.23,'G4':392,'A4':440,'B4':493.88,
+  'C5':523.25,'D5':587.33,'E5':659.25,'F5':698.46,'G5':783.99,'A5':880,'B5':987.77,
+  'C6':1046.5,'-':0
+};
+// Cada tema: bpm + melodia + baixo + percussão (+ arpeggio opcional).
+// arp = 3ª voz aguda em sine wave (chime/sino), volume metade da melodia.
+// dr: 'k'=kick · 's'=snare · 'h'=hi-hat · '-'=silêncio
+const MUSICA = {
+  menu: { bpm: 100,
+    mel: ['A4','C5','E5','C5','A4','E5','C5','E5','F4','A4','C5','A4','G4','B4','D5','B4'],
+    bx:  ['A3','-', '-', '-', 'E3','-', '-', '-', 'F3','-', '-', '-', 'G3','-', '-', '-' ],
+    dr:  ['-', '-', 'h', '-', '-', '-', 'h', '-', '-', '-', 'h', '-', '-', '-', 'h', '-' ],
+    arp: ['A5','-', '-', 'C6','-', '-', 'E5','-', 'F5','-', '-', 'A5','-', '-', 'D5','-' ] },
+
+  // ========== TEMA POR FASE ==========
+  // Fase 1 — Casa (aconchegante, Dó maior)
+  fase1_casa: { bpm: 120,
+    mel: ['C5','E5','G5','E5','C5','D5','E5','D5','F5','A5','F5','D5','C5','G4','C5','-' ],
+    bx:  ['C3','-', 'G3','-', 'C3','-', 'G3','-', 'F3','-', 'C3','-', 'G3','-', 'C3','-' ],
+    dr:  ['k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'k', 's', 'h' ] },
+
+  // Fase 2 — Bombeiros (urgente, Mi menor, alarme)
+  fase2_bombeiros: { bpm: 160,
+    mel: ['E5','G5','E5','G5','D5','F5','D5','F5','E5','G5','E5','G5','B4','D5','B4','D5'],
+    bx:  ['E2','-', 'E2','-', 'D2','-', 'D2','-', 'E2','-', 'E2','-', 'B2','-', 'B2','-' ],
+    dr:  ['k', 's', 'k', 's', 'k', 's', 'k', 's', 'k', 's', 'k', 's', 'k', 'k', 's', 's' ] },
+
+  // Fase 3 — Polícia (suspense nocturno, Si menor)
+  fase3_policia: { bpm: 100,
+    mel: ['B4','-', 'A4','-', 'G4','-', 'A4','-', 'E4','-', 'G4','-', 'A4','B4','D5','B4'],
+    bx:  ['E3','-', '-', '-', 'D3','-', '-', '-', 'C3','-', '-', '-', 'B2','-', '-', '-' ],
+    dr:  ['k', '-', 'h', '-', 'k', '-', 'h', '-', 'k', '-', 'h', '-', 'k', '-', 's', '-' ] },
+
+  // Fase 4 — Hospital (sino perturbador, Dó menor, lento)
+  fase4_hospital: { bpm: 70,
+    mel: ['C5','-', '-', 'E5','-', '-', 'G5','-', '-', 'C5','-', '-', 'F5','-', 'E5','-' ],
+    bx:  ['C3','-', '-', '-', '-', '-', '-', '-', 'F3','-', '-', '-', '-', '-', '-', '-' ],
+    arp: ['C5','E5','G5','-', 'F5','A5','C6','-', 'C5','E5','G5','-', 'D5','F5','A5','-' ] },
+
+  // Fase 5 — Supermercado (jingle bouncy, Sol maior)
+  fase5_supermercado: { bpm: 130,
+    mel: ['G4','B4','D5','G5','D5','B4','G4','-', 'C5','E5','G5','C6','G5','E5','C5','-' ],
+    bx:  ['G3','-', 'G3','-', 'G3','-', 'G3','-', 'C3','-', 'C3','-', 'C3','-', 'C3','-' ],
+    dr:  ['k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'h', 's', 'h' ] },
+
+  // Fase 6 — Fliperama (8-bit clássico, Dó maior, rápido)
+  fase6_fliperama: { bpm: 150,
+    mel: ['C5','G5','C5','G5','E5','G5','C5','G5','D5','A5','D5','A5','F5','A5','D5','A5'],
+    bx:  ['C3','-', 'C3','-', 'C3','-', 'C3','-', 'D3','-', 'D3','-', 'D3','-', 'D3','-' ],
+    dr:  ['k', 'h', 'h', 'h', 's', 'h', 'h', 'h', 'k', 'h', 'h', 'h', 's', 'h', 'h', 'h' ],
+    arp: ['C6','E6'.replace('E6','C6'),'G5','-', 'E5','-', 'C5','-', 'D5','-', 'F5','-', 'A5','-', 'D6'.replace('D6','D5'),'-'] },
+
+  // Fase 7 — Restaurante (jazz clássico, Lá menor)
+  fase7_restaurante: { bpm: 110,
+    mel: ['A4','C5','E5','-', 'F5','E5','D5','C5','B4','D5','F5','E5','D5','C5','B4','A4'],
+    bx:  ['A2','E3','A3','E3','D3','A3','D3','A3','E2','B2','E3','B2','A2','E3','A2','E3'],
+    dr:  ['k', '-', 's', '-', 'k', '-', 's', '-', 'k', 'h', 's', '-', 'k', '-', 's', 'h' ] },
+
+  // Fase 8 — McDonald's (jingle corporativo fake-feliz, Sol maior)
+  fase8_mcdonalds: { bpm: 140,
+    mel: ['G4','G4','B4','G4','D5','D5','B4','G4','C5','C5','E5','C5','G5','G5','E5','C5'],
+    bx:  ['G3','-', 'G3','-', 'G3','-', 'G3','-', 'C3','-', 'C3','-', 'C3','-', 'C3','-' ],
+    dr:  ['k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'h', 's', 'h', 'k', 'h', 's', 'h' ] },
+
+  // Fase 9 — Escola (sino escolar, Dó maior)
+  fase9_escola: { bpm: 90,
+    mel: ['C5','-', 'E5','-', 'G5','-', 'C6','-', 'G5','-', 'E5','-', 'C5','-', '-', '-' ],
+    bx:  ['C3','-', '-', '-', 'F3','-', '-', '-', 'G3','-', '-', '-', 'C3','-', '-', '-' ],
+    dr:  ['k', '-', '-', '-', 's', '-', '-', '-', 'k', '-', '-', '-', 's', '-', '-', '-' ],
+    arp: ['G5','-', 'C6','-', 'E6'.replace('E6','C6'),'-', 'G6'.replace('G6','G5'),'-', 'E6'.replace('E6','E5'),'-', 'C6','-', 'G5','-', 'E5','-' ] },
+
+  // Fase 10 — Base dos Vilões (tribal escuro, Ré menor)
+  fase10_base: { bpm: 130,
+    mel: ['D4','F4','D4','A3','D4','F4','D4','A3','G4','A4','G4','F4','E4','D4','C4','D4'],
+    bx:  ['D2','-', 'D2','-', 'D2','-', 'D2','-', 'G2','-', 'G2','-', 'A2','-', 'A2','-' ],
+    dr:  ['k', 'k', 's', '-', 'k', 'k', 's', 'h', 'k', 'k', 's', 'h', 'k', 'k', 's', 's' ] },
+
+  // ========== BOSS ==========
+  boss: { bpm: 160,
+    mel: ['D4','F4','D4','-', 'A3','-', 'D4','F4','E4','G4','E4','-', 'A3','-', 'C4','E4'],
+    bx:  ['D2','-', 'D2','-', 'D2','-', 'D2','-', 'E2','-', 'E2','-', 'A2','-', 'A2','-' ],
+    dr:  ['k', 'h', 'k', 's', 'k', 'k', 's', 'h', 'k', 'h', 'k', 's', 'k', 'k', 's', 's' ] },
+  // Versão "enraged" — boss com pouca vida (<40%): mais rápido, mais agressivo
+  boss_enraged: { bpm: 200,
+    mel: ['D5','F5','D5','A4','D5','F5','A5','F5','E5','G5','E5','B4','E5','G5','B5','G5'],
+    bx:  ['D2','D2','D2','-', 'D2','D2','D2','-', 'E2','E2','E2','-', 'A2','A2','A2','-' ],
+    dr:  ['k', 'k', 's', 's', 'k', 'k', 's', 's', 'k', 'k', 's', 's', 'k', 'k', 's', 's' ],
+    arp: ['D6'.replace('D6','D5'),'F5','A5','F5','D5','A4','D5','F5','E5','G5','B5','G5','E5','B4','E5','G5'] },
+
+  vitoria: { bpm: 200,
+    mel: ['C5','E5','G5','C6','G5','E5','C6','-' ],
+    bx:  ['C3','-', 'G3','-', 'C4','-', 'G3','-' ],
+    dr:  ['k', 's', 'k', 's', 'k', 's', 'k', 's' ] },
+  gameover: { bpm: 80,
+    mel: ['C4','B3','A3','G3','F3','E3','D3','C3'],
+    bx:  ['-', '-', '-', '-', 'C3','-', '-', 'C2'] },
+};
+
+let musicaAtual = null;
+let musicaInterval = null;
+let musicaIndice = 0;
+let musicaVolume = 0.06;
+let musicaMute = false;
+
+function tocarMusica(nome) {
+  if (musicaAtual === nome) return; // já a tocar este tema
+  pararMusica();
+  if (musicaMute || !MUSICA[nome]) return;
+  musicaAtual = nome;
+  musicaIndice = 0;
+  const m = MUSICA[nome];
+  const intervalo = 60000 / m.bpm / 2; // colcheia
+  musicaInterval = setInterval(() => {
+    if (!audioCtx) return;
+    const i = musicaIndice % m.mel.length;
+    const dur = intervalo / 1000 * 0.9;
+    if (NOTAS[m.mel[i]] > 0) tocarNota(NOTAS[m.mel[i]], dur, 'square', musicaVolume);
+    if (NOTAS[m.bx[i]]  > 0) tocarNota(NOTAS[m.bx[i]],  dur, 'triangle', musicaVolume * 1.4);
+    // 3ª voz: arpeggio/sino (sine wave)
+    if (m.arp) {
+      const a = m.arp[i % m.arp.length];
+      if (NOTAS[a] > 0) tocarNota(NOTAS[a], dur * 0.6, 'sine', musicaVolume * 0.55);
+    }
+    // 4ª voz: percussão
+    if (m.dr) {
+      const d = m.dr[i % m.dr.length];
+      if (d === 'k') tocarKick();
+      else if (d === 's') tocarSnare();
+      else if (d === 'h') tocarHat();
+    }
+    musicaIndice++;
+  }, intervalo);
+}
+function pararMusica() {
+  if (musicaInterval) clearInterval(musicaInterval);
+  musicaInterval = null;
+  musicaAtual = null;
+}
+function tocarNota(freq, duracao, tipo, vol) {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = tipo;
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duracao);
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duracao);
+}
+
+/* ---------- PERCUSSÃO (3ª voz, ruído branco) ---------- */
+function tocarKick() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(110, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 0.12);
+  g.gain.setValueAtTime(musicaVolume * 2.5, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.12);
+}
+function tocarSnare() {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.06, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1) * (1 - i/d.length);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(musicaVolume * 1.8, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.06);
+  noise.connect(g); g.connect(audioCtx.destination);
+  noise.start();
+}
+function tocarHat() {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 0.03, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random()*2-1);
+  const noise = audioCtx.createBufferSource();
+  noise.buffer = buf;
+  const filtro = audioCtx.createBiquadFilter();
+  filtro.type = 'highpass'; filtro.frequency.value = 6000;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(musicaVolume * 0.9, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.03);
+  noise.connect(filtro); filtro.connect(g); g.connect(audioCtx.destination);
+  noise.start();
+}
+function somDano()   { som(120, 0.18, 'sawtooth'); }
+function somMorte()  { som(80, 0.3, 'sawtooth', 0.2); }
+function somVitoria(){ som(660, 0.15); setTimeout(()=>som(880,0.2),120); setTimeout(()=>som(1100,0.3),300); }
+
+/* ---------- HERÓI (Midoriya) ---------- */
+// Posição, velocidade, vida, armadura activa, etc.
+const heroi = {
+  x: 100, y: 0, w: 36, h: 56,
+  vx: 0, vy: 0,
+  noChao: false,
+  vida: 3, vidaMax: 3,
+  invencivel: 0, // frames de invencibilidade após levar dano
+  olhandoDireita: true,
+  armadura: 'cavaleiro',
+  // Todas as 8 armaduras desbloqueadas para o Luís experimentar.
+  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical'],
+  voando: false,             // só Angelical: activa-se com duplo-clique no salto
+  ultimoSaltoTime: -100,     // para detectar duplo-clique
+  angelicalCounter: 0,       // cicla os 3 ataques: pena → chama azul → feixe
+  trail: [],                 // posições passadas para efeito de rasto
+  ataqueAtivo: 0, // frames restantes da animação de ataque
+};
+
+// Constantes físicas
+const GRAVIDADE = 0.7;
+const VEL_ANDAR = 4;
+const FORCA_SALTO = 13;
+const CHAO_Y = H - 80; // altura do chão (eixo Y é para baixo)
+
+/* ---------- INIMIGOS ---------- */
+// Lista dinâmica de inimigos na fase
+let inimigos = [];
+
+function criarMonstro(x, vida=2, cor='#6a2a2a') {
+  return { tipo:'monstro', x, y: CHAO_Y - 40, w: 38, h: 40,
+    vx: -1.2, vida, vidaMax: vida, dano: 1, pontos: 50, atingido: 0, cor };
+}
+function criarDragao(x, vida=8, cor='#7a2a8a', nome='DRAGÃO') {
+  return { tipo:'dragao', x, y: CHAO_Y - 70, w: 80, h: 70,
+    vx: -0.8, vida, vidaMax: vida, dano: 1, pontos: 300, atingido: 0, chefe: true, cor, nome };
+}
+// Inimigo voador: ignora gravidade, oscila para cima e para baixo.
+function criarVoador(x, cor='#e84') {
+  return { tipo:'voador', x, y: CHAO_Y - 180, w: 34, h: 28,
+    vx: -1.6, vida: 1, vidaMax: 1, dano: 1, pontos: 80, atingido: 0, cor,
+    yBase: CHAO_Y - 180, fase: Math.random()*Math.PI*2 };
+}
+// Chefe da Fase 5: Shigaraki em pessoa.
+function criarShigarakiBoss(x) {
+  return { tipo:'shigaraki', x, y: CHAO_Y - 120, w: 70, h: 120,
+    vx: -0.7, vida: 18, vidaMax: 18, dano: 1, pontos: 1000,
+    atingido: 0, chefe: true, cor: '#222', nome: 'SHIGARAKI' };
+}
+// CHEFE FINAL DO JOGO (Fase 10): All For One — gigante, lento, dano 2.
+function criarAllForOne(x) {
+  return { tipo:'afo', x, y: CHAO_Y - 160, w: 90, h: 160,
+    vx: -0.5, vida: 30, vidaMax: 30, dano: 2, pontos: 2500,
+    atingido: 0, chefe: true, cor: '#1a0030', nome: 'ALL FOR ONE' };
+}
+
+/* ---------- ATAQUES ---------- */
+// Cavaleiro = hitbox corpo-a-corpo (curto e forte).
+// Ninja    = projécteis (shurikens) que rodam.
+// Robô     = laser rápido em linha recta.
+let hitboxAtaque = null;
+let projeteis = []; // lista de shurikens / lasers no ar
+let particulas = []; // efeitos visuais (faíscas, mortes)
+let shake = 0;       // intensidade actual de screen shake (decresce com o tempo)
+let pickups = [];        // corações e moedas largados pelos inimigos
+let projeteisInimigo = []; // projécteis lançados pelos chefes
+let bossDerrotadoNaFase = false; // flag fiável: foi marcada quando o boss morre.
+
+function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
+
+// Larga um pickup quando um inimigo morre. Probabilidades:
+// 12% coração (+1 vida), 35% moeda (+25 pontos), resto = nada.
+function largarPickup(ini) {
+  const r = Math.random();
+  const x = ini.x + ini.w/2 - 12;
+  const y = ini.y + ini.h/2;
+  if (r < 0.12) {
+    pickups.push({ tipo:'coracao', x, y, w:24, h:22, vy: -3, vida: 600, fase: 0 });
+  } else if (r < 0.47) {
+    pickups.push({ tipo:'moeda', x, y, w:18, h:18, vy: -3, vida: 600, fase: 0 });
+  }
+  // Chefe larga sempre 1 coração extra (boss bonus)
+  if (ini.chefe) {
+    pickups.push({ tipo:'coracao', x: x + 30, y, w:24, h:22, vy: -4, vida: 600, fase: 0.5 });
+  }
+}
+
+// Boss dispara um projéctil em direcção ao herói. Cor/visual por tipo.
+function dispararProjectilInimigo(ini) {
+  const dx = (heroi.x + heroi.w/2) - (ini.x + ini.w/2);
+  const dy = (heroi.y + heroi.h/2) - (ini.y + ini.h/2);
+  const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+  const vel = 4.5;
+  let cor = '#a4f', dano = 1, w = 18, h = 18, tipo = 'esfera';
+  // Personaliza por boss (cor identifica o ataque temático)
+  if (ini.cor === '#7a2a8a') { cor = '#a4f'; }                       // dragão fase 1
+  else if (ini.cor === '#c40') { cor = '#f80'; tipo = 'chama'; }      // demónio fogo
+  else if (ini.cor === '#048') { cor = '#48f'; tipo = 'bala'; w=14; h=8; } // comissário
+  else if (ini.cor === '#286') { cor = '#fff'; tipo = 'seringa'; w=22; h=8; } // doutor
+  else if (ini.tipo === 'shigaraki') { cor = '#222'; tipo = 'onda'; w=28; h=28; dano = 2; }
+  else if (ini.tipo === 'afo') { cor = '#a0f'; tipo = 'energia_afo'; w=36; h=36; dano = 2; }
+  projeteisInimigo.push({
+    x: ini.x + ini.w/2 - w/2, y: ini.y + ini.h/2 - h/2,
+    vx: (dx/dist) * vel, vy: (dy/dist) * vel,
+    w, h, vida: 180, dano, cor, tipo
+  });
+  som(180, 0.08, 'sawtooth');
+}
+
+function lancarParticulas(x, y, cor, n=8, vel=4) {
+  // Pequenos quadrados que voam para fora com gravidade leve.
+  for (let i = 0; i < n; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const v = Math.random() * vel + 1;
+    particulas.push({
+      x, y, vx: Math.cos(ang)*v, vy: Math.sin(ang)*v - 1,
+      vida: 30 + Math.random()*20, cor, tam: 2 + Math.floor(Math.random()*3)
+    });
+  }
+}
+
+function tentarAtacar() {
+  if (heroi.ataqueAtivo > 0) return;
+  heroi.ataqueAtivo = 12;
+  const dir = heroi.olhandoDireita ? 1 : -1;
+  const cx = heroi.olhandoDireita ? heroi.x + heroi.w : heroi.x;
+  const cy = heroi.y + 24;
+
+  if (heroi.armadura === 'cavaleiro') {
+    // Espada: hitbox à frente do herói durante alguns frames.
+    somAtaque();
+    const alcance = 50;
+    const hx = heroi.olhandoDireita ? heroi.x + heroi.w : heroi.x - alcance;
+    hitboxAtaque = { x: hx, y: heroi.y + 10, w: alcance, h: heroi.h - 20, vida: 8, dano: 1 };
+  } else if (heroi.armadura === 'ninja') {
+    // Shuriken: projéctil mais lento, dano 1, vida 120 frames.
+    som(660, 0.06, 'triangle');
+    projeteis.push({ tipo:'shuriken', x: cx, y: cy, vx: 8*dir, vy: 0,
+      w: 16, h: 16, dano: 1, vida: 120, rot: 0 });
+  } else if (heroi.armadura === 'robo') {
+    // Laser: projéctil muito rápido, dano 2.
+    som(880, 0.05, 'sawtooth');
+    som(1320, 0.05, 'square', 0.08);
+    projeteis.push({ tipo:'laser', x: cx, y: cy + 4, vx: 14*dir, vy: 0,
+      w: 28, h: 6, dano: 2, vida: 60 });
+  } else if (heroi.armadura === 'mago_fogo') {
+    // Bola de fogo
+    som(550, 0.1, 'sawtooth', 0.15);
+    projeteis.push({ tipo:'fogo', x: cx, y: cy, vx: 7*dir, vy: 0,
+      w: 24, h: 24, dano: 1, vida: 100 });
+  } else if (heroi.armadura === 'mago_gelo') {
+    // Cristal de gelo (mais rápido)
+    som(900, 0.08, 'sine');
+    projeteis.push({ tipo:'gelo', x: cx, y: cy, vx: 9*dir, vy: 0,
+      w: 18, h: 22, dano: 1, vida: 110 });
+  } else if (heroi.armadura === 'mago_terra') {
+    // Rocha em arco — dano 2 mas mais lenta e cai (gravidade)
+    som(180, 0.1, 'square');
+    projeteis.push({ tipo:'terra', x: cx, y: cy - 10, vx: 6*dir, vy: -4,
+      w: 26, h: 26, dano: 2, vida: 100, comGravidade: true });
+  } else if (heroi.armadura === 'mago_vento') {
+    // Rajada de vento (atravessa inimigos)
+    som(1100, 0.06, 'triangle');
+    projeteis.push({ tipo:'vento', x: cx, y: cy, vx: 11*dir, vy: 0,
+      w: 38, h: 12, dano: 1, vida: 90, atravessa: true });
+  } else if (heroi.armadura === 'angelical') {
+    // 3 ataques alternados: pena → chama azul → feixe divino
+    const tipoAng = ['pena','chama_azul','feixe'][heroi.angelicalCounter];
+    heroi.angelicalCounter = (heroi.angelicalCounter + 1) % 3;
+    if (tipoAng === 'pena') {
+      som(900, 0.1, 'triangle');
+      projeteis.push({ tipo:'pena', x: cx, y: cy, vx: 8*dir, vy: -1,
+        w: 22, h: 14, dano: 1, vida: 130, rot: 0 });
+    } else if (tipoAng === 'chama_azul') {
+      som(1200, 0.12, 'sine', 0.15);
+      projeteis.push({ tipo:'chama_azul', x: cx, y: cy, vx: 7*dir, vy: 0,
+        w: 26, h: 26, dano: 1, vida: 110 });
+    } else {
+      som(1500, 0.18, 'sawtooth', 0.12);
+      som(2000, 0.15, 'sine', 0.08);
+      projeteis.push({ tipo:'feixe', x: cx, y: cy + 4, vx: 16*dir, vy: 0,
+        w: 50, h: 10, dano: 2, vida: 80, atravessa: true });
+    }
+  }
+}
+
+/* ---------- CUTSCENE ---------- */
+// O texto vem agora da configuração da fase actual (FASES[faseAtual]).
+let cutsceneIndice = 0;     // letras já reveladas
+let cutsceneTimer = 0;      // controla velocidade da revelação
+
+/* ============================================================
+   SISTEMA DE FASES DATA-DRIVEN
+   Cada fase é um objecto com a sua configuração. Replicar para
+   a Etapa 2 = adicionar mais 4 entradas neste array.
+   ============================================================ */
+const FASES = [
+  {
+    nome: 'CASA', numero: 1, musica: 'fase1_casa',
+    largura: 2000,
+    desenharCenario: () => desenharCenarioCasa(),
+    cutscene: { ator: 'shigaraki', fala: 'ESTA CIDADE VAI CAIR, MIDORIYA!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 2),
+      criarMonstro(700, 2),
+      criarMonstro(950, 3),
+      criarMonstro(1200, 3),
+      criarDragao(1600),
+    ],
+    recompensa: 'ninja',
+  },
+  {
+    nome: 'QUARTEL DE BOMBEIROS', numero: 2, musica: 'fase2_bombeiros',
+    largura: 2200,
+    desenharCenario: () => desenharCenarioBombeiros(),
+    cutscene: { ator: 'shigaraki', fala: 'OS BOMBEIROS NÃO TE VÃO SALVAR!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 2, '#a44'),
+      criarVoador(750, '#f80'),         // espírito de fogo voador
+      criarMonstro(950, 3, '#a44'),
+      criarVoador(1150, '#f80'),
+      criarMonstro(1350, 3, '#a44'),
+      criarDragao(1800, 12, '#c40', 'DEMÓNIO DE FOGO'),
+    ],
+    recompensa: 'robo',
+  },
+  {
+    nome: 'ESQUADRA DA POLÍCIA', numero: 3, musica: 'fase3_policia',
+    largura: 2400,
+    desenharCenario: () => desenharCenarioPolicia(),
+    cutscene: { ator: 'shigaraki', fala: 'A LEI AGORA SOU EU, MIDORIYA!' },
+    spawnInimigos: () => [
+      criarMonstro(400, 3, '#246'),
+      criarMonstro(650, 3, '#246'),
+      criarVoador(900, '#48f'),         // drone de vigilância
+      criarMonstro(1150, 4, '#246'),
+      criarMonstro(1450, 4, '#246'),
+      criarVoador(1700, '#48f'),
+      criarDragao(2050, 14, '#048', 'COMISSÁRIO CORRUPTO'),
+    ],
+    recompensa: null,
+  },
+  {
+    nome: 'HOSPITAL', numero: 4, musica: 'fase4_hospital',
+    largura: 2400,
+    desenharCenario: () => desenharCenarioHospital(),
+    cutscene: { ator: 'shigaraki', fala: 'NEM OS DOUTORES TE VÃO CURAR DESTA!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 4, '#8a4'),     // doutores-vilões verdes
+      criarVoador(700, '#fff'),         // seringa voadora
+      criarMonstro(950, 4, '#8a4'),
+      criarVoador(1200, '#fff'),
+      criarMonstro(1450, 5, '#8a4'),
+      criarVoador(1700, '#fff'),
+      criarDragao(2050, 16, '#286', 'DOUTOR MUTANTE'),
+    ],
+    recompensa: null,
+  },
+  {
+    nome: 'SUPERMERCADO', numero: 5, musica: 'fase5_supermercado',
+    largura: 2600,
+    desenharCenario: () => desenharCenarioSupermercado(),
+    cutscene: { ator: 'shigaraki', fala: 'AQUI ACABA A TUA HISTÓRIA, HERÓI!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 4, '#c84'),     // funcionários-zombi
+      criarMonstro(750, 4, '#c84'),
+      criarVoador(1000, '#f4a'),
+      criarMonstro(1250, 5, '#c84'),
+      criarVoador(1500, '#f4a'),
+      criarMonstro(1750, 5, '#c84'),
+      criarVoador(2000, '#f4a'),
+      criarShigarakiBoss(2300),
+    ],
+    recompensa: null,
+  },
+  {
+    nome: 'FLIPERAMA', numero: 6, musica: 'fase6_fliperama', largura: 2400,
+    desenharCenario: () => desenharCenarioFliperama(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'PENSAS QUE VENCESTE? A VERDADEIRA AMEAÇA AINDA NÃO APARECEU!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 5, '#a4f'),
+      criarVoador(750, '#0ff'),
+      criarMonstro(1000, 5, '#a4f'),
+      criarVoador(1250, '#0ff'),
+      criarMonstro(1500, 6, '#a4f'),
+      criarVoador(1750, '#0ff'),
+      criarDragao(2050, 18, '#608', 'GLITCH BOSS'),
+    ],
+    recompensa: 'mago_fogo',
+  },
+  {
+    nome: 'RESTAURANTE', numero: 7, musica: 'fase7_restaurante', largura: 2500,
+    desenharCenario: () => desenharCenarioRestaurante(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'O JANTAR ESTÁ SERVIDO... E ÉS TU O PRATO PRINCIPAL!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 5, '#a55'),
+      criarMonstro(750, 5, '#a55'),
+      criarVoador(1000, '#fc0'),
+      criarMonstro(1250, 6, '#a55'),
+      criarVoador(1500, '#fc0'),
+      criarMonstro(1750, 6, '#a55'),
+      criarDragao(2150, 20, '#822', 'CHEF MUTANTE'),
+    ],
+    recompensa: 'mago_gelo',
+  },
+  {
+    nome: 'McDONALD\'S', numero: 8, musica: 'fase8_mcdonalds', largura: 2500,
+    desenharCenario: () => desenharCenarioMcDonalds(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'TENS UM HAPPY MEAL DE DOR À TUA ESPERA, HERÓI!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 6, '#f40'),
+      criarVoador(750, '#fc0'),
+      criarMonstro(1000, 6, '#f40'),
+      criarVoador(1250, '#fc0'),
+      criarMonstro(1500, 6, '#f40'),
+      criarVoador(1750, '#fc0'),
+      criarMonstro(2000, 7, '#f40'),
+      criarDragao(2200, 22, '#c00', 'PALHAÇO DO MAL'),
+    ],
+    recompensa: 'mago_terra',
+  },
+  {
+    nome: 'ESCOLA', numero: 9, musica: 'fase9_escola', largura: 2600,
+    desenharCenario: () => desenharCenarioEscola(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'A LIÇÃO DE HOJE: COMO PERDER PARA SEMPRE!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 6, '#286'),
+      criarMonstro(750, 6, '#286'),
+      criarVoador(1000, '#fff'),
+      criarMonstro(1250, 7, '#286'),
+      criarVoador(1500, '#fff'),
+      criarMonstro(1750, 7, '#286'),
+      criarVoador(2000, '#fff'),
+      criarDragao(2300, 24, '#063', 'PROFESSOR FANTASMA'),
+    ],
+    recompensa: 'mago_vento',
+  },
+  {
+    nome: 'BASE DOS VILÕES', numero: 10, musica: 'fase10_base', largura: 2800,
+    desenharCenario: () => desenharCenarioBase(),
+    cutscene: { ator:'afo', nomeAtor:'ALL FOR ONE',
+      fala:'BEM-VINDO À MINHA BASE, MIDORIYA. AGORA CONHECE O VERDADEIRO MAL!' },
+    spawnInimigos: () => [
+      criarMonstro(500, 7, '#a0f'),
+      criarVoador(750, '#f0f'),
+      criarMonstro(1000, 7, '#a0f'),
+      criarVoador(1250, '#f0f'),
+      criarMonstro(1500, 8, '#a0f'),
+      criarVoador(1750, '#f0f'),
+      criarMonstro(2000, 8, '#a0f'),
+      criarVoador(2200, '#f0f'),
+      criarAllForOne(2500),                  // CHEFE FINAL DO JOGO
+    ],
+    recompensa: 'angelical',
+    finalDoJogo: true,
+  },
+];
+let faseAtual = 0;
+function faseAcual() { return FASES[faseAtual]; } // helper
+
+/* ---------- INICIALIZAÇÃO DE FASE ---------- */
+function iniciarFase(idx) {
+  faseAtual = idx;
+  const f = FASES[idx];
+  inimigos = f.spawnInimigos();
+  heroi.x = 100;
+  heroi.y = CHAO_Y - heroi.h;
+  heroi.vx = 0; heroi.vy = 0;
+  heroi.vida = heroi.vidaMax;
+  heroi.invencivel = 0;
+  heroi.ataqueAtivo = 0;
+  pontos = 0;
+  hitboxAtaque = null;
+  projeteis = [];
+  particulas = [];
+  pickups = [];
+  projeteisInimigo = [];
+  shake = 0;
+  bossDerrotadoNaFase = false;
+  camera.x = 0;
+  // Reset cutscene da fase
+  cutsceneIndice = 0; cutsceneTimer = 0;
+}
+
+/* ---------- CÂMARA ---------- */
+// Limitada à largura da fase actual.
+const camera = { x: 0 };
+function atualizarCamera() {
+  const largura = FASES[faseAtual].largura;
+  let alvo = heroi.x - W / 3;
+  if (alvo < 0) alvo = 0;
+  if (alvo > largura - W) alvo = largura - W;
+  camera.x += (alvo - camera.x) * (1 - Math.pow(0.9, dtF));
+}
+
+/* ============================================================
+   LOOP PRINCIPAL — chamado ~60 vezes por segundo.
+   ============================================================ */
+function loop(now) {
+  now = now || performance.now();
+  // Calcula delta normalizado (1 = exactamente 60fps).
+  // Cap de 3 evita "spiral of death" se o separador esteve em pausa.
+  if (lastTime === 0) lastTime = now;
+  const dt = (now - lastTime) / 1000;
+  lastTime = now;
+  dtF = Math.min(dt * 60, 3);
+  tempo += dtF;
+  // Actualiza o estado actual e desenha
+  if (estado === 'menu')      atualizarMenu();
+  else if (estado === 'cutscene') atualizarCutscene();
+  else if (estado === 'jogo')     atualizarJogo();
+  else if (estado === 'gameover') atualizarGameOver();
+  else if (estado === 'vitoria')  atualizarVitoria();
+
+  // Limpa as teclas one-shot deste frame
+  for (const k in teclasJustNow) delete teclasJustNow[k];
+  requestAnimationFrame(loop);
+}
+
+/* ---------- ESTADO: MENU ---------- */
+function atualizarMenu() {
+  if (audioCtx) tocarMusica('menu');
+  desenharFundoMenu();
+
+  // Título no topo, com sombra escura por baixo para legibilidade.
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 64px Courier New';
+  // Sombra preta deslocada
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillText('ARMADURAS', W/2 + 4, 84);
+  ctx.fillText('X VILÕES',  W/2 + 4, 144);
+  // Texto principal por cima
+  ctx.fillStyle = '#4af';
+  ctx.fillText('ARMADURAS', W/2, 80);
+  ctx.fillStyle = '#f44';
+  ctx.fillText('X VILÕES', W/2, 140);
+
+  // Prompt a piscar — em baixo, com fundo escuro semi-transparente.
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, H - 90, W, 60);
+  ctx.font = '20px Courier New';
+  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#aaa';
+  ctx.fillText('PRIME ENTER PARA COMEÇAR', W/2, H - 60);
+  ctx.font = '12px Courier New';
+  ctx.fillStyle = '#888';
+  ctx.fillText('Para o Luís Manuel ❤', W/2, H - 38);
+
+  if (teclasJustNow['Enter']) {
+    iniciarFase(0);
+    estado = 'cutscene';
+    som(523, 0.1);
+  }
+}
+
+function desenharFundoMenu() {
+  // Se o PNG estiver carregado, usa-o; senão fallback com gradiente.
+  if (imgMenuPronta) {
+    ctx.drawImage(imgMenu, 0, 0, W, H);
+  } else {
+    const grd = ctx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#0a0a2a');
+    grd.addColorStop(1, '#330033');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 50; i++) {
+      const x = (i * 137) % W, y = (i * 53) % (H/2);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+}
+
+/* ---------- ESTADO: CUTSCENE ---------- */
+function atualizarCutscene() {
+  const fala = FASES[faseAtual].cutscene.fala;
+  // Fundo escuro com gradiente
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#1a0010');
+  grd.addColorStop(1, '#0a0010');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+
+  // Retrato do VILÃO à esquerda — o que está a falar.
+  // Pulsa subtilmente quando ainda há texto a revelar.
+  const aFalar = cutsceneIndice < fala.length;
+  const escala = aFalar ? 1 + Math.sin(tempo * 0.2) * 0.02 : 1;
+  const vilaoTam = 280 * escala;
+  if (imgVilaoPronto) {
+    ctx.drawImage(imgVilao, 50 - (vilaoTam-280)/2, 30 - (vilaoTam-280)/2, vilaoTam, vilaoTam);
+  } else {
+    desenharShigaraki(120, 80);
+  }
+  // Retrato do HERÓI à direita — atenuado (não está a falar nesta cutscene).
+  if (imgHeroiPronto) {
+    ctx.globalAlpha = 0.65;
+    ctx.drawImage(imgHeroi, W - 330, 30, 280, 280);
+    ctx.globalAlpha = 1;
+  }
+
+  // Caixa de diálogo
+  ctx.fillStyle = 'rgba(0,0,0,0.8)';
+  ctx.fillRect(40, H - 160, W - 80, 120);
+  ctx.strokeStyle = '#f44'; ctx.lineWidth = 3;
+  ctx.strokeRect(40, H - 160, W - 80, 120);
+
+  // Texto a aparecer letra a letra (escalado por dtF)
+  cutsceneTimer += dtF;
+  if (cutsceneTimer >= 2 && cutsceneIndice < fala.length) {
+    cutsceneTimer = 0;
+    cutsceneIndice++;
+    if (fala[cutsceneIndice-1] !== ' ') som(220, 0.02, 'square', 0.05);
+  }
+  ctx.fillStyle = '#f88';
+  ctx.font = 'bold 16px Courier New';
+  ctx.textAlign = 'left';
+  const nomeAtor = FASES[faseAtual].cutscene.nomeAtor || 'SHIGARAKI';
+  ctx.fillText(nomeAtor + ':', 60, H - 130);
+  ctx.fillStyle = '#fff';
+  ctx.font = '22px Courier New';
+  ctx.fillText(fala.substring(0, cutsceneIndice), 60, H - 95);
+
+  ctx.fillStyle = '#888';
+  ctx.font = '14px Courier New';
+  ctx.textAlign = 'right';
+  ctx.fillText('ENTER para continuar', W - 60, H - 55);
+
+  if (teclasJustNow['Enter']) {
+    if (cutsceneIndice < fala.length) {
+      cutsceneIndice = fala.length; // revela tudo
+    } else {
+      estado = 'jogo';
+      // Carrega os inimigos da fase mas mantém a posição/estado já preparado.
+      inimigos = FASES[faseAtual].spawnInimigos();
+    }
+  }
+}
+
+function desenharShigaraki(x, y) {
+  // Corpo escuro
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x, y, 80, 120);
+  // Cabeça
+  ctx.fillStyle = '#d4c5a0';
+  ctx.fillRect(x + 15, y - 40, 50, 50);
+  // Cabelo branco caído
+  ctx.fillStyle = '#eee';
+  ctx.fillRect(x + 10, y - 50, 60, 20);
+  ctx.fillRect(x + 10, y - 30, 15, 30);
+  ctx.fillRect(x + 55, y - 30, 15, 30);
+  // Mão na cara (sinal característico)
+  ctx.fillStyle = '#d4c5a0';
+  ctx.fillRect(x + 25, y - 30, 30, 30);
+  ctx.fillStyle = '#000';
+  // Olhos vermelhos por baixo da mão
+  ctx.fillStyle = '#f00';
+  ctx.fillRect(x + 30, y - 20, 5, 5);
+  ctx.fillRect(x + 45, y - 20, 5, 5);
+}
+
+/* ---------- ESTADO: JOGO ---------- */
+function atualizarJogo() {
+  // Música adaptativa:
+  //  - se há boss perto E vida < 40% → tema "enraged" (mais rápido, mais alto)
+  //  - se há boss perto → tema boss
+  //  - senão → tema único da fase (FASES[i].musica) com fallback genérico
+  const bossVivo = inimigos.find(i => i.chefe && Math.abs(heroi.x - i.x) < 900);
+  if (bossVivo && bossVivo.vida / bossVivo.vidaMax < 0.4) {
+    tocarMusica('boss_enraged');
+  } else if (bossVivo) {
+    tocarMusica('boss');
+  } else {
+    const temaFase = FASES[faseAtual].musica || 'fase1_casa';
+    tocarMusica(temaFase);
+  }
+
+  // 1. Input do herói
+  let mover = 0;
+  if (teclas['ArrowLeft']  || teclas['KeyA']) mover = -1;
+  if (teclas['ArrowRight'] || teclas['KeyD']) mover =  1;
+  heroi.vx = mover * VEL_ANDAR;
+  if (mover !== 0) heroi.olhandoDireita = (mover > 0);
+
+  // Salto / voo
+  const tentouSaltar = teclasJustNow['ArrowUp'] || teclasJustNow['KeyW'] || teclasJustNow['Space'];
+  if (tentouSaltar) {
+    const passou = tempo - heroi.ultimoSaltoTime;
+    // ANGELICAL: duplo-clique no salto (intervalo < 18 frames) → activa/desactiva voo
+    if (heroi.armadura === 'angelical' && passou < 18) {
+      heroi.voando = !heroi.voando;
+      heroi.vy = heroi.voando ? -3 : 0;
+      som(heroi.voando ? 1200 : 600, 0.18, 'triangle', 0.12);
+    } else if (heroi.voando) {
+      // Em voo, salto curto = subida adicional
+      heroi.vy = -6;
+      som(900, 0.06, 'triangle', 0.08);
+    } else if (heroi.noChao) {
+      heroi.vy = -FORCA_SALTO;
+      heroi.noChao = false;
+      som(330, 0.1);
+    }
+    heroi.ultimoSaltoTime = tempo;
+  }
+  // Em voo: setas cima/baixo controlam altura
+  if (heroi.voando) {
+    let lift = 0;
+    if (teclas['ArrowUp']   || teclas['KeyW']) lift = -4;
+    if (teclas['ArrowDown'] || teclas['KeyS']) lift =  4;
+    if (lift !== 0) heroi.vy = lift;
+    else heroi.vy *= 0.92; // amortece quando não há thrust
+  }
+  // Se troquei de armadura para fora de Angelical, sai do voo
+  if (heroi.armadura !== 'angelical' && heroi.voando) heroi.voando = false;
+
+  // Ataque
+  if (teclasJustNow['KeyJ'] || teclasJustNow['KeyZ']) tentarAtacar();
+
+  // Trocar armadura: K ou X cicla entre as desbloqueadas.
+  if (teclasJustNow['KeyK'] || teclasJustNow['KeyX']) {
+    if (heroi.armadurasDesbloqueadas.length > 1) {
+      const i = heroi.armadurasDesbloqueadas.indexOf(heroi.armadura);
+      heroi.armadura = heroi.armadurasDesbloqueadas[(i+1) % heroi.armadurasDesbloqueadas.length];
+      som(660, 0.1);
+    } else {
+      som(150, 0.05);
+    }
+  }
+
+  // 2. Física do herói (escalada por dtF para ser independente de fps)
+  // Em voo, gravidade desligada.
+  if (!heroi.voando) heroi.vy += GRAVIDADE * dtF;
+  heroi.x += heroi.vx * dtF;
+  heroi.y += heroi.vy * dtF;
+  // Em voo, limita o tecto (não sai do ecrã pelo topo)
+  if (heroi.voando && heroi.y < 20) { heroi.y = 20; heroi.vy = 0; }
+  // Colisão com o chão (se não está em voo, ou se aterra durante voo)
+  if (heroi.y + heroi.h >= CHAO_Y) {
+    heroi.y = CHAO_Y - heroi.h;
+    heroi.vy = 0;
+    heroi.noChao = true;
+    if (heroi.voando) heroi.voando = false; // aterragem força sair do voo
+  }
+  // Limites da fase
+  const larguraFase = FASES[faseAtual].largura;
+  if (heroi.x < 0) heroi.x = 0;
+  if (heroi.x > larguraFase - heroi.w) heroi.x = larguraFase - heroi.w;
+
+  // 3. Hitbox de ataque
+  if (heroi.ataqueAtivo > 0) {
+    heroi.ataqueAtivo -= dtF;
+    if (hitboxAtaque) {
+      // Acompanha a posição do herói
+      hitboxAtaque.x = heroi.olhandoDireita ? heroi.x + heroi.w : heroi.x - hitboxAtaque.w;
+      hitboxAtaque.y = heroi.y + 10;
+      hitboxAtaque.vida -= dtF;
+      // Verifica colisões com inimigos
+      for (const ini of inimigos) {
+        if (ini.atingido > 0) continue;
+        if (colide(hitboxAtaque, ini)) {
+          ini.vida -= hitboxAtaque.dano;
+          ini.atingido = 15;
+          ini.vx = heroi.olhandoDireita ? 2 : -2;
+          somDano();
+          lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 6, 3);
+          tremerEcra(ini.chefe ? 6 : 3);
+          if (ini.vida <= 0) {
+            pontos += ini.pontos;
+            somMorte();
+            lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
+            tremerEcra(ini.chefe ? 12 : 5);
+            largarPickup(ini);
+            if (ini.chefe) bossDerrotadoNaFase = true;
+          }
+        }
+      }
+      if (hitboxAtaque.vida <= 0) hitboxAtaque = null;
+    }
+  } else {
+    hitboxAtaque = null;
+  }
+
+  // 3b. Projécteis (shurikens / lasers / etc.)
+  for (const p of projeteis) {
+    p.x += p.vx * dtF; p.y += p.vy * dtF; p.vida -= dtF;
+    if (p.tipo === 'shuriken') p.rot = (p.rot || 0) + 0.4 * dtF;
+    if (p.tipo === 'pena') p.rot = (p.rot || 0) + 0.15 * dtF;
+    // Gravidade para projécteis com arco (rocha do Mago de Terra)
+    if (p.comGravidade) p.vy += 0.4 * dtF;
+    // Colisão com inimigos
+    for (const ini of inimigos) {
+      if (ini.atingido > 0 || p.vida <= 0) continue;
+      if (colide(p, ini)) {
+        ini.vida -= p.dano;
+        ini.atingido = 12;
+        ini.vx = (p.vx > 0) ? 1.5 : -1.5;
+        somDano();
+        // Cor da faísca conforme tipo
+        const corImp = ({laser:'#0ff', fogo:'#f80', gelo:'#cef', terra:'#963',
+          vento:'#cfc', pena:'#fc0', chama_azul:'#0ff', feixe:'#fff'})[p.tipo] || '#fff';
+        lancarParticulas(p.x, p.y + p.h/2, corImp, 5, 3);
+        tremerEcra(ini.chefe ? 5 : 2);
+        if (ini.vida <= 0) {
+          pontos += ini.pontos;
+          somMorte();
+          lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
+          tremerEcra(ini.chefe ? 12 : 5);
+          largarPickup(ini);
+          if (ini.chefe) bossDerrotadoNaFase = true;
+        }
+        // Atravessa: feixe, vento, laser (não gasta vida do projéctil)
+        if (!p.atravessa && p.tipo !== 'laser') p.vida = 0;
+      }
+    }
+  }
+  // Remove projécteis que saíram do mundo ou expiraram
+  projeteis = projeteis.filter(p => p.vida > 0 &&
+    p.x > camera.x - 100 && p.x < camera.x + W + 100);
+
+  // 4. Inimigos: IA simples — caminham em direcção ao herói
+  for (const ini of inimigos) {
+    if (ini.atingido > 0) { ini.atingido -= dtF; ini.x += ini.vx * dtF; continue; }
+    // Persegue herói se estiver perto
+    const dx = heroi.x - ini.x;
+    let velPerseguir = 1.5;
+    if (ini.tipo === 'dragao')      velPerseguir = 1.0;
+    else if (ini.tipo === 'voador') velPerseguir = 2.0;
+    else if (ini.tipo === 'shigaraki') velPerseguir = 0.9;
+    else if (ini.tipo === 'afo')    velPerseguir = 0.7;
+    if (Math.abs(dx) < 700) {
+      ini.vx = Math.sign(dx) * velPerseguir;
+    }
+    ini.x += ini.vx * dtF;
+    // Voador: oscila no eixo Y (movimento ondulado), ignora chão.
+    if (ini.tipo === 'voador') {
+      ini.fase += 0.08 * dtF;
+      ini.y = ini.yBase + Math.sin(ini.fase) * 30;
+    }
+    // Chefe: dispara projéctil periodicamente quando o herói está perto.
+    if (ini.chefe) {
+      ini.cooldownTiro = (ini.cooldownTiro || 90) - dtF;
+      if (ini.cooldownTiro <= 0 && Math.abs(heroi.x - ini.x) < 700) {
+        dispararProjectilInimigo(ini);
+        // Shigaraki dispara mais depressa (boss final)
+        ini.cooldownTiro = ini.tipo === 'shigaraki' ? 70 : 110;
+      }
+    }
+    // Colisão com o herói (dano por contacto, com 1s de invencibilidade)
+    if (heroi.invencivel === 0 && colide(heroi, ini)) {
+      heroi.vida -= ini.dano;
+      heroi.invencivel = 60;
+      heroi.vx = (heroi.x < ini.x) ? -6 : 6;
+      heroi.vy = -6;
+      somDano();
+      lancarParticulas(heroi.x + heroi.w/2, heroi.y + heroi.h/2, '#f88', 10, 4);
+      tremerEcra(8);
+    }
+  }
+  // Remove inimigos mortos
+  inimigos = inimigos.filter(i => i.vida > 0);
+
+  // 4b. Pickups (corações, moedas) — caem com gravidade e flutuam
+  for (const pk of pickups) {
+    pk.vida -= dtF;
+    pk.fase += 0.1 * dtF;
+    pk.vy += GRAVIDADE * 0.5 * dtF;
+    pk.y += pk.vy * dtF;
+    if (pk.y + pk.h >= CHAO_Y - 4) {
+      pk.y = CHAO_Y - 4 - pk.h;
+      pk.vy = 0;
+    }
+    // Apanhar
+    if (colide(heroi, pk)) {
+      if (pk.tipo === 'coracao') {
+        if (heroi.vida < heroi.vidaMax) { heroi.vida++; som(880, 0.15, 'triangle'); }
+        else { pontos += 50; som(660, 0.1); } // já vida cheia → bónus pontos
+      } else if (pk.tipo === 'moeda') {
+        pontos += 25; som(1200, 0.06, 'square', 0.1);
+      }
+      lancarParticulas(pk.x, pk.y, pk.tipo==='coracao'?'#f88':'#fc0', 6, 3);
+      pk.vida = 0;
+    }
+  }
+  pickups = pickups.filter(pk => pk.vida > 0);
+
+  // 4c. Projécteis dos chefes
+  for (const pe of projeteisInimigo) {
+    pe.x += pe.vx * dtF;
+    pe.y += pe.vy * dtF;
+    pe.vida -= dtF;
+    // Acerta no herói?
+    if (heroi.invencivel === 0 && colide(heroi, pe)) {
+      heroi.vida -= pe.dano;
+      heroi.invencivel = 60;
+      heroi.vx = (pe.vx > 0) ? -5 : 5;
+      heroi.vy = -5;
+      somDano();
+      lancarParticulas(heroi.x + heroi.w/2, heroi.y + heroi.h/2, '#f88', 10, 4);
+      tremerEcra(8);
+      pe.vida = 0;
+    }
+  }
+  projeteisInimigo = projeteisInimigo.filter(pe => pe.vida > 0);
+
+  // 4d. Trail (rasto) do herói — guarda posições recentes quando se move/voa
+  const movRapido = Math.abs(heroi.vx) > 0.5 || Math.abs(heroi.vy) > 2 || heroi.voando;
+  if (movRapido && tempo % 2 < 1) {
+    heroi.trail.push({ x: heroi.x, y: heroi.y, life: 1,
+      armadura: heroi.armadura, dir: heroi.olhandoDireita });
+    if (heroi.trail.length > 8) heroi.trail.shift();
+  }
+  for (const t of heroi.trail) t.life *= Math.pow(0.82, dtF);
+  heroi.trail = heroi.trail.filter(t => t.life > 0.05);
+
+  // 5. Invencibilidade do herói + actualização de partículas e shake
+  if (heroi.invencivel > 0) heroi.invencivel -= dtF;
+  for (const pt of particulas) {
+    pt.x += pt.vx * dtF; pt.y += pt.vy * dtF;
+    pt.vy += 0.3 * dtF;
+    pt.vx *= Math.pow(0.98, dtF);
+    pt.vida -= dtF;
+  }
+  particulas = particulas.filter(pt => pt.vida > 0);
+  if (shake > 0) shake *= Math.pow(0.85, dtF);
+
+  // 6. Verifica condições de fim
+  if (heroi.vida <= 0) {
+    estado = 'gameover';
+    somMorte();
+  } else if (bossDerrotadoNaFase) {
+    // Vitória = bandeira marcada quando o boss morre.
+    // 100% fiável, independente do que aconteceu à lista de inimigos.
+    estado = 'vitoria';
+    somVitoria();
+    inimigos = [];
+    projeteisInimigo = [];
+    const recompensa = FASES[faseAtual].recompensa;
+    if (recompensa && !heroi.armadurasDesbloqueadas.includes(recompensa)) {
+      heroi.armadurasDesbloqueadas.push(recompensa);
+    }
+  }
+
+  // 7. Câmara
+  atualizarCamera();
+
+  // 8. Render — aplica screen shake (offset aleatório que decai)
+  const sx = (shake > 0.3) ? (Math.random()-0.5) * shake * 2 : 0;
+  const sy = (shake > 0.3) ? (Math.random()-0.5) * shake * 2 : 0;
+  ctx.save();
+  ctx.translate(sx, sy);
+  FASES[faseAtual].desenharCenario();
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  desenharSombraHeroi();
+  for (const pk of pickups) desenharPickup(pk);
+  for (const ini of inimigos) desenharInimigo(ini);
+  desenharTrailHeroi(); // rasto vai por trás do herói
+  for (const p of projeteis) desenharProjectil(p);
+  for (const pe of projeteisInimigo) desenharProjectilInimigo(pe);
+  for (const pt of particulas) desenharParticula(pt);
+  desenharHeroi();
+  if (hitboxAtaque) desenharHitbox(hitboxAtaque);
+  ctx.restore();
+  ctx.restore();
+  desenharHUD();
+}
+
+/* ---------- DESENHO: SOMBRA / PARTÍCULA ---------- */
+// Cor de rasto consoante a armadura — usada por desenharTrailHeroi.
+function corTrail(armadura) {
+  return ({
+    cavaleiro:'#4af', ninja:'#444', robo:'#0ff',
+    mago_fogo:'#f80', mago_gelo:'#cef', mago_terra:'#9c3',
+    mago_vento:'#9f9', angelical:'#fff'
+  })[armadura] || '#fff';
+}
+function desenharTrailHeroi() {
+  // Cada entrada do trail é um silhueta atenuado da armadura na sua altura.
+  for (const t of heroi.trail) {
+    ctx.globalAlpha = t.life * 0.4;
+    ctx.fillStyle = corTrail(t.armadura);
+    // Forma simplificada: tronco + cabeça
+    ctx.fillRect(t.x + 4, t.y + 18, 28, 24);
+    ctx.fillRect(t.x + 8, t.y + 4, 20, 16);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function desenharSombraHeroi() {
+  // Elipse achatada por baixo do herói — ajuda a ler a altura do salto
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(heroi.x + heroi.w/2, CHAO_Y - 1, 22, 5, 0, 0, Math.PI*2);
+  ctx.fill();
+}
+function desenharPickup(pk) {
+  const flutua = Math.sin(pk.fase) * 3;
+  const x = pk.x, y = pk.y + flutua;
+  if (pk.tipo === 'coracao') {
+    // Coração rosa pulsante
+    const escala = 1 + Math.sin(pk.fase*2) * 0.1;
+    ctx.fillStyle = '#f48';
+    ctx.fillRect(x,    y,    10, 10);
+    ctx.fillRect(x+12, y,    10, 10);
+    ctx.beginPath();
+    ctx.moveTo(x,    y + 8);
+    ctx.lineTo(x+22, y + 8);
+    ctx.lineTo(x+11, y + 22);
+    ctx.closePath();
+    ctx.fill();
+    // Brilho
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x+3, y+2, 3, 3);
+  } else if (pk.tipo === 'moeda') {
+    // Moeda dourada a girar (largura oscila)
+    const w = 6 + Math.abs(Math.sin(pk.fase)) * 12;
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + (18 - w)/2, y, w, 18);
+    ctx.fillStyle = '#fa0';
+    ctx.fillRect(x + (18 - w)/2 + 2, y + 4, Math.max(1, w - 4), 10);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 9 - 1, y + 6, 2, 4);
+  }
+}
+
+function desenharProjectilInimigo(pe) {
+  // Glow vermelho/roxo nos projécteis inimigos
+  ctx.shadowColor = pe.tipo === 'energia_afo' ? '#f0f' : (pe.cor || '#f44');
+  ctx.shadowBlur = 16;
+  desenharProjectilInimigoInterno(pe);
+  ctx.shadowBlur = 0;
+}
+function desenharProjectilInimigoInterno(pe) {
+  if (pe.tipo === 'esfera') {
+    // Bola de energia roxa com aura
+    ctx.fillStyle = pe.cor;
+    ctx.beginPath();
+    ctx.arc(pe.x + pe.w/2, pe.y + pe.h/2, pe.w/2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(pe.x + pe.w/2 - 3, pe.y + pe.h/2 - 3, 3, 0, Math.PI*2);
+    ctx.fill();
+  } else if (pe.tipo === 'chama') {
+    // Chama animada: triângulo a oscilar
+    ctx.fillStyle = '#c00';
+    ctx.fillRect(pe.x, pe.y, pe.w, pe.h);
+    ctx.fillStyle = '#f80';
+    ctx.fillRect(pe.x + 3, pe.y + 3, pe.w - 6, pe.h - 6);
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#ff0' : '#fff';
+    ctx.fillRect(pe.x + 6, pe.y + 6, pe.w - 12, pe.h - 12);
+  } else if (pe.tipo === 'bala') {
+    ctx.fillStyle = '#888';
+    ctx.fillRect(pe.x, pe.y, pe.w, pe.h);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(pe.x + pe.w - 4, pe.y, 4, pe.h);
+  } else if (pe.tipo === 'seringa') {
+    // Corpo branco + agulha à frente
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(pe.x, pe.y, pe.w - 6, pe.h);
+    ctx.fillStyle = '#0a8';
+    ctx.fillRect(pe.x + 2, pe.y + 2, pe.w - 10, pe.h - 4);
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(pe.x + pe.w - 6, pe.y + pe.h/2 - 1, 6, 2);
+  } else if (pe.tipo === 'onda') {
+    const r = pe.w/2 + Math.sin(tempo*0.3) * 3;
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(pe.x + pe.w/2, pe.y + pe.h/2, r, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle = '#400';
+    ctx.beginPath();
+    ctx.arc(pe.x + pe.w/2, pe.y + pe.h/2, r/2, 0, Math.PI*2);
+    ctx.fill();
+  } else if (pe.tipo === 'energia_afo') {
+    // Esfera de energia roxa devastadora — núcleo branco a pulsar
+    const cx = pe.x + pe.w/2, cy = pe.y + pe.h/2;
+    const r = pe.w/2 + Math.sin(tempo*0.25) * 4;
+    // Halo exterior
+    ctx.fillStyle = 'rgba(160,0,255,0.3)';
+    ctx.beginPath(); ctx.arc(cx, cy, r + 6, 0, Math.PI*2); ctx.fill();
+    // Esfera principal
+    ctx.fillStyle = '#a0f';
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+    // Núcleo brilhante
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#fff' : '#fcc';
+    ctx.beginPath(); ctx.arc(cx, cy, r/3, 0, Math.PI*2); ctx.fill();
+    // Raios eléctricos a sair (4 direcções)
+    ctx.strokeStyle = '#f0f'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - r - 4, cy); ctx.lineTo(cx - r - 10, cy + (Math.sin(tempo*0.5))*3);
+    ctx.moveTo(cx + r + 4, cy); ctx.lineTo(cx + r + 10, cy - (Math.sin(tempo*0.5))*3);
+    ctx.stroke();
+  }
+}
+
+function desenharParticula(pt) {
+  const alpha = Math.min(1, pt.vida / 30);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = pt.cor;
+  ctx.fillRect(Math.floor(pt.x), Math.floor(pt.y), pt.tam, pt.tam);
+  ctx.globalAlpha = 1;
+}
+
+/* ---------- DETECÇÃO DE COLISÃO (AABB) ---------- */
+function colide(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/* ---------- DESENHO: CENÁRIO CASA ---------- */
+function desenharCenarioCasa() {
+  // Se o fundo pintado existir, usa-o e sai (já contém parede + chão).
+  if (desenharFundoFase('1-casa')) return;
+  // Fallback: cenário desenhado por código (original).
+  ctx.fillStyle = '#5a3a2a'; ctx.fillRect(0, 0, W, H);
+
+  // Parede do fundo (com padrão de papel de parede simples)
+  ctx.fillStyle = '#7a4a3a'; ctx.fillRect(0, 0, W, CHAO_Y);
+
+  // Janelas e porta — aplicamos paralaxe leve
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.5), 0);
+  for (let i = 0; i < 6; i++) {
+    const jx = 200 + i * 350;
+    // Janela
+    ctx.fillStyle = '#8af';
+    ctx.fillRect(jx, 80, 80, 100);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(jx + 38, 80, 4, 100);
+    ctx.fillRect(jx, 128, 80, 4);
+    ctx.strokeStyle = '#3a1a0a'; ctx.lineWidth = 4;
+    ctx.strokeRect(jx, 80, 80, 100);
+  }
+  // Porta (aparece uma vez)
+  ctx.fillStyle = '#3a1a0a';
+  ctx.fillRect(900, 200, 80, 200);
+  ctx.fillStyle = '#fc0';
+  ctx.fillRect(965, 300, 8, 8);
+  ctx.restore();
+
+  // Móveis (mesa e cadeira) com paralaxe completa
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  // Mesa
+  ctx.fillStyle = '#4a2a1a';
+  ctx.fillRect(300, CHAO_Y - 50, 120, 10);
+  ctx.fillRect(310, CHAO_Y - 40, 8, 40);
+  ctx.fillRect(402, CHAO_Y - 40, 8, 40);
+  // Tapete
+  ctx.fillStyle = '#a22';
+  ctx.fillRect(1000, CHAO_Y - 4, 200, 4);
+  ctx.restore();
+
+  // Chão
+  ctx.fillStyle = '#6a3a1a';
+  ctx.fillRect(0, CHAO_Y, W, H - CHAO_Y);
+  // Linhas de tábuas
+  ctx.strokeStyle = '#3a1a0a'; ctx.lineWidth = 2;
+  const offset = -Math.floor(camera.x) % 80;
+  for (let x = offset; x < W; x += 80) {
+    ctx.beginPath(); ctx.moveTo(x, CHAO_Y); ctx.lineTo(x, H); ctx.stroke();
+  }
+}
+
+/* ============================================================
+   CENÁRIOS DAS FASES 2-5 (Etapa 2)
+   Cada um segue o mesmo padrão: parede de fundo + chão +
+   decoração temática com paralaxe.
+   ============================================================ */
+
+// Helper: chão com cor, com linhas de paralaxe
+function desenharChao(corChao, corLinha, espacamento=80) {
+  ctx.fillStyle = corChao;
+  ctx.fillRect(0, CHAO_Y, W, H - CHAO_Y);
+  ctx.strokeStyle = corLinha; ctx.lineWidth = 2;
+  const offset = -Math.floor(camera.x) % espacamento;
+  for (let x = offset; x < W; x += espacamento) {
+    ctx.beginPath(); ctx.moveTo(x, CHAO_Y); ctx.lineTo(x, H); ctx.stroke();
+  }
+}
+
+// Helper: parede com elementos repetidos com paralaxe leve
+function desenharParedeRepetida(corFundo, callbackEl, espacamento, paralaxe=0.5) {
+  ctx.fillStyle = corFundo; ctx.fillRect(0, 0, W, CHAO_Y);
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * paralaxe), 0);
+  // Cobre o intervalo visível
+  const inicio = Math.floor(camera.x * paralaxe / espacamento) * espacamento;
+  for (let x = inicio; x < camera.x * paralaxe + W + espacamento; x += espacamento) {
+    callbackEl(x);
+  }
+  ctx.restore();
+}
+
+/* ---- FASE 2: QUARTEL DE BOMBEIROS ---- */
+function desenharCenarioBombeiros() {
+  if (desenharFundoFase('2-bombeiros')) return;
+  // Céu noturno laranja-fogo
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#3a0a0a'); grd.addColorStop(1, '#a04020');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Portões de garagem do quartel + luz a piscar
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    // Portão vermelho
+    ctx.fillStyle = '#a22'; ctx.fillRect(jx, 200, 140, 200);
+    ctx.fillStyle = '#700'; for (let i=0;i<5;i++) ctx.fillRect(jx, 220+i*40, 140, 4);
+    // Sirene
+    ctx.fillStyle = (Math.floor(tempo/15)%2) ? '#f44' : '#400';
+    ctx.fillRect(jx + 60, 170, 20, 12);
+    // Letras "BOMBEIROS"
+    ctx.fillStyle = '#fc0'; ctx.font = 'bold 14px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('BOMBEIROS', jx + 70, 195);
+  }, 400, 0.5);
+  // Camião de bombeiros (paralaxe completa)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let bx = 600; bx < FASES[faseAtual].largura; bx += 1200) {
+    ctx.fillStyle = '#c22'; ctx.fillRect(bx, CHAO_Y - 60, 140, 50);
+    ctx.fillStyle = '#400'; ctx.fillRect(bx + 5, CHAO_Y - 50, 30, 30);
+    ctx.fillStyle = '#000'; ctx.beginPath();
+    ctx.arc(bx + 25, CHAO_Y - 5, 12, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx + 115, CHAO_Y - 5, 12, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  desenharChao('#552222', '#330808');
+}
+
+/* ---- FASE 3: ESQUADRA DA POLÍCIA ---- */
+function desenharCenarioPolicia() {
+  if (desenharFundoFase('3-policia')) return;
+  ctx.fillStyle = '#1a2440'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Celas com grades e luzes pulsantes
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    // Cela
+    ctx.fillStyle = '#0a1020'; ctx.fillRect(jx, 100, 100, 220);
+    // Grades verticais
+    ctx.fillStyle = '#888';
+    for (let i = 0; i < 5; i++) ctx.fillRect(jx + 10 + i*20, 100, 4, 220);
+    // Grade horizontal
+    ctx.fillRect(jx, 200, 100, 4);
+    // Luz azul/vermelha (sirene a piscar)
+    ctx.fillStyle = (Math.floor(tempo/10)%2) ? '#48f' : '#f44';
+    ctx.fillRect(jx + 40, 80, 20, 14);
+  }, 280, 0.5);
+  // Mesa de esquadra (paralaxe completa)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let mx = 400; mx < FASES[faseAtual].largura; mx += 800) {
+    ctx.fillStyle = '#444'; ctx.fillRect(mx, CHAO_Y - 40, 100, 8);
+    ctx.fillRect(mx + 5, CHAO_Y - 32, 6, 32);
+    ctx.fillRect(mx + 89, CHAO_Y - 32, 6, 32);
+    // Pasta de papéis
+    ctx.fillStyle = '#fc0'; ctx.fillRect(mx + 30, CHAO_Y - 50, 30, 12);
+  }
+  ctx.restore();
+  desenharChao('#222840', '#101428');
+}
+
+/* ---- FASE 4: HOSPITAL ---- */
+function desenharCenarioHospital() {
+  if (desenharFundoFase('4-hospital')) return;
+  ctx.fillStyle = '#d8e8e8'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Portas de quartos + cruz médica
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    // Porta
+    ctx.fillStyle = '#fff'; ctx.fillRect(jx, 150, 80, 220);
+    ctx.strokeStyle = '#aac'; ctx.lineWidth = 3;
+    ctx.strokeRect(jx, 150, 80, 220);
+    // Cruz verde-médica
+    ctx.fillStyle = '#2c8';
+    ctx.fillRect(jx + 30, 180, 20, 60);
+    ctx.fillRect(jx + 10, 200, 60, 20);
+    // Numero do quarto
+    ctx.fillStyle = '#000'; ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('Q' + (Math.floor(jx/300)+1), jx + 40, 350);
+  }, 300, 0.5);
+  // Cama de hospital (paralaxe completa)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let cx = 500; cx < FASES[faseAtual].largura; cx += 900) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(cx, CHAO_Y - 35, 120, 12);
+    ctx.fillStyle = '#88a'; ctx.fillRect(cx, CHAO_Y - 23, 120, 6);
+    ctx.fillStyle = '#666'; ctx.fillRect(cx, CHAO_Y - 17, 6, 17);
+    ctx.fillRect(cx + 114, CHAO_Y - 17, 6, 17);
+  }
+  ctx.restore();
+  desenharChao('#bcc8c8', '#88a0a0');
+}
+
+/* ---- FASE 5: SUPERMERCADO ---- */
+function desenharCenarioSupermercado() {
+  if (desenharFundoFase('5-supermercado')) return;
+  ctx.fillStyle = '#fff8e0'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Prateleiras com produtos coloridos
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#aaa'; ctx.fillRect(jx, 120, 200, 260);
+    // 4 prateleiras
+    for (let p = 0; p < 4; p++) {
+      ctx.fillStyle = '#666'; ctx.fillRect(jx, 150 + p*60, 200, 4);
+      // Produtos coloridos
+      const cores = ['#f44','#4f4','#ff0','#48f','#f8f','#0ff'];
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = cores[(i+p)%cores.length];
+        ctx.fillRect(jx + 10 + i*30, 154 + p*60, 24, 32);
+      }
+    }
+    // Letreiro
+    ctx.fillStyle = '#f80'; ctx.fillRect(jx, 100, 200, 18);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('PROMOÇÃO', jx + 100, 113);
+  }, 400, 0.5);
+  // Carrinhos abandonados (paralaxe completa)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let kx = 300; kx < FASES[faseAtual].largura; kx += 600) {
+    ctx.fillStyle = '#ccc'; ctx.fillRect(kx, CHAO_Y - 40, 50, 30);
+    ctx.fillStyle = '#888';
+    for (let i = 0; i < 4; i++) ctx.fillRect(kx + i*16, CHAO_Y - 40, 2, 30);
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(kx + 8, CHAO_Y - 5, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(kx + 42, CHAO_Y - 5, 6, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  desenharChao('#e8d8a8', '#a89868');
+}
+
+/* ============================================================
+   CENÁRIOS DAS FASES 6-10 (Etapa 2 expandida)
+   ============================================================ */
+
+/* ---- FASE 6: FLIPERAMA ---- */
+function desenharCenarioFliperama() {
+  if (desenharFundoFase('6-fliperama')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#1a0030'); grd.addColorStop(1, '#400060');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Máquinas de arcade
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    const cores = ['#f44','#4f4','#48f','#fc0','#f4a','#0ff'];
+    const cor = cores[Math.floor(jx/200) % cores.length];
+    ctx.fillStyle = cor; ctx.fillRect(jx, 130, 100, 250);
+    // Ecrã LED
+    ctx.fillStyle = '#000'; ctx.fillRect(jx + 10, 150, 80, 70);
+    const px = (Math.floor(tempo/4) % 4) * 16;
+    ctx.fillStyle = '#0f0'; ctx.fillRect(jx + 14 + px, 162, 12, 12);
+    ctx.fillStyle = '#ff0'; ctx.fillRect(jx + 30, 188, 8, 8);
+    // Joystick + botões
+    ctx.fillStyle = '#000'; ctx.fillRect(jx + 22, 250, 8, 26);
+    ctx.fillStyle = '#f00'; ctx.beginPath(); ctx.arc(jx + 56, 268, 8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#00f'; ctx.beginPath(); ctx.arc(jx + 76, 268, 8, 0, Math.PI*2); ctx.fill();
+    // Letreiro neon
+    ctx.fillStyle = (Math.floor(tempo/12)%2) ? '#fc0' : '#f80';
+    ctx.fillRect(jx, 110, 100, 18);
+    ctx.fillStyle = '#000'; ctx.font = 'bold 11px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ARCADE★', jx + 50, 122);
+  }, 200, 0.5);
+  desenharChao('#220033', '#400060');
+}
+
+/* ---- FASE 7: RESTAURANTE ---- */
+function desenharCenarioRestaurante() {
+  if (desenharFundoFase('7-restaurante')) return;
+  ctx.fillStyle = '#5a1a2a'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Quadros + candelabros
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    // Quadro
+    ctx.fillStyle = '#fc0'; ctx.fillRect(jx, 80, 100, 120);
+    ctx.fillStyle = '#a55'; ctx.fillRect(jx + 6, 86, 88, 108);
+    ctx.fillStyle = '#fcc'; ctx.fillRect(jx + 36, 100, 28, 16);
+    ctx.fillStyle = '#000'; ctx.fillRect(jx + 30, 116, 40, 50);
+    // Candelabro
+    ctx.fillStyle = '#fc0'; ctx.fillRect(jx + 130, 60, 6, 80);
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#f80' : '#fc0';
+    ctx.fillRect(jx + 128, 50, 10, 12);
+  }, 250, 0.5);
+  // Mesas com pratos
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let mx = 400; mx < FASES[faseAtual].largura; mx += 700) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(mx, CHAO_Y - 30, 80, 6);
+    ctx.fillStyle = '#a55'; ctx.fillRect(mx + 5, CHAO_Y - 24, 70, 24);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(mx + 40, CHAO_Y - 35, 10, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#48f'; ctx.fillRect(mx + 20, CHAO_Y - 42, 6, 12);
+  }
+  ctx.restore();
+  desenharChao('#3a0a1a', '#1a0008');
+}
+
+/* ---- FASE 8: McDONALD'S ---- */
+function desenharCenarioMcDonalds() {
+  if (desenharFundoFase('8-mcdonalds')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#fc0'); grd.addColorStop(1, '#f40');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // M gigantes a piscar
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = (Math.floor(tempo/15)%2) ? '#fc0' : '#fa0';
+    ctx.fillRect(jx + 10, 60, 16, 100);
+    ctx.fillRect(jx + 84, 60, 16, 100);
+    ctx.fillRect(jx + 26, 60, 30, 16);
+    ctx.fillRect(jx + 54, 60, 30, 16);
+    ctx.fillRect(jx + 40, 76, 30, 16);
+    // Hambúrguer flutuante
+    const fl = Math.sin(tempo * 0.1 + jx*0.01) * 6;
+    ctx.fillStyle = '#963'; ctx.fillRect(jx + 30, 200 + fl, 50, 8);
+    ctx.fillStyle = '#0a0'; ctx.fillRect(jx + 28, 208 + fl, 54, 4);
+    ctx.fillStyle = '#a44'; ctx.fillRect(jx + 30, 212 + fl, 50, 6);
+    ctx.fillStyle = '#fc0'; ctx.fillRect(jx + 30, 218 + fl, 50, 8);
+  }, 320, 0.5);
+  // Balcão + batatas
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let bx = 300; bx < FASES[faseAtual].largura; bx += 600) {
+    ctx.fillStyle = '#f40'; ctx.fillRect(bx, CHAO_Y - 50, 200, 30);
+    ctx.fillStyle = '#fc0'; ctx.fillRect(bx, CHAO_Y - 50, 200, 4);
+    ctx.fillStyle = '#a44'; ctx.fillRect(bx + 30, CHAO_Y - 65, 40, 15);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(bx + 35, CHAO_Y - 75, 4, 12);
+    ctx.fillRect(bx + 42, CHAO_Y - 78, 4, 14);
+    ctx.fillRect(bx + 50, CHAO_Y - 75, 4, 12);
+    ctx.fillRect(bx + 58, CHAO_Y - 78, 4, 14);
+  }
+  ctx.restore();
+  desenharChao('#a40', '#600');
+}
+
+/* ---- FASE 9: ESCOLA ---- */
+function desenharCenarioEscola() {
+  if (desenharFundoFase('9-escola')) return;
+  ctx.fillStyle = '#dcb'; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Cacifos verdes
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#286'; ctx.fillRect(jx, 130, 80, 250);
+    ctx.fillStyle = '#1a4'; ctx.fillRect(jx + 4, 134, 4, 242);
+    ctx.fillRect(jx + 72, 134, 4, 242);
+    ctx.fillStyle = '#000'; ctx.fillRect(jx, 250, 80, 2);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(jx + 60, 180, 4, 8);
+    ctx.fillRect(jx + 60, 320, 4, 8);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText((Math.floor(jx/120) % 99) + 1, jx + 40, 170);
+  }, 120, 0.5);
+  // Quadros nas paredes
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let qx = 600; qx < FASES[faseAtual].largura; qx += 1100) {
+    ctx.fillStyle = '#000'; ctx.fillRect(qx, 100, 200, 90);
+    ctx.fillStyle = '#1a4'; ctx.fillRect(qx + 4, 104, 192, 82);
+    ctx.fillStyle = '#fff'; ctx.font = '16px Courier New'; ctx.textAlign = 'center';
+    ctx.fillText('1+1=∞', qx + 100, 145);
+    ctx.fillText('HERÓIS!', qx + 100, 165);
+  }
+  ctx.restore();
+  desenharChao('#a98', '#765');
+}
+
+/* ---- FASE 10: BASE DOS VILÕES ---- */
+function desenharCenarioBase() {
+  if (desenharFundoFase('10-base')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#100020'); grd.addColorStop(1, '#400010');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Cristais de energia
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = (Math.floor(tempo/10)%2) ? '#a4f' : '#608';
+    ctx.beginPath();
+    ctx.moveTo(jx + 30, 100);
+    ctx.lineTo(jx + 60, 180);
+    ctx.lineTo(jx + 30, 320);
+    ctx.lineTo(jx, 180);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(jx + 28, 140, 4, 100);
+  }, 350, 0.5);
+  // Tronos com símbolos
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let tx = 500; tx < FASES[faseAtual].largura; tx += 800) {
+    ctx.fillStyle = '#222'; ctx.fillRect(tx, CHAO_Y - 100, 60, 100);
+    ctx.fillStyle = '#400'; ctx.fillRect(tx + 5, CHAO_Y - 95, 50, 95);
+    ctx.fillStyle = '#f00'; ctx.fillRect(tx + 25, CHAO_Y - 75, 10, 35);
+    ctx.fillStyle = '#000'; ctx.fillRect(tx + 28, CHAO_Y - 60, 4, 8);
+  }
+  ctx.restore();
+  desenharChao('#1a0020', '#080010');
+}
+
+/* ---------- DESENHO: HERÓI ---------- */
+function desenharHeroi() {
+  const h = heroi;
+  // Pisca quando invencível
+  if (h.invencivel > 0 && Math.floor(h.invencivel/4) % 2 === 0) return;
+
+  const x = h.x, y = h.y;
+
+  // Paleta por armadura: identidade visual distinta para cada modo.
+  let corPernas, corTronco, corDetalhe;
+  if      (h.armadura === 'cavaleiro')   { corPernas = '#2a4a8a'; corTronco = '#3a6acc'; corDetalhe = '#aaa'; }
+  else if (h.armadura === 'ninja')       { corPernas = '#111';    corTronco = '#222';    corDetalhe = '#c22'; }
+  else if (h.armadura === 'robo')        { corPernas = '#888';    corTronco = '#bbb';    corDetalhe = '#0ff'; }
+  else if (h.armadura === 'mago_fogo')   { corPernas = '#600';    corTronco = '#c20';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'mago_gelo')   { corPernas = '#246';    corTronco = '#48c';    corDetalhe = '#cff'; }
+  else if (h.armadura === 'mago_terra')  { corPernas = '#430';    corTronco = '#741';    corDetalhe = '#9c0'; }
+  else if (h.armadura === 'mago_vento')  { corPernas = '#272';    corTronco = '#4b6';    corDetalhe = '#fff'; }
+  else /* angelical */                   { corPernas = '#ddc';    corTronco = '#fff';    corDetalhe = '#fc0'; }
+
+  // Pernas — animação de andar quando se move no chão
+  const aMover = (h.vx !== 0) && h.noChao;
+  const passo = aMover ? Math.floor(tempo/6) % 2 : 0;
+  const pernaEsq = passo === 0 ? 0 : 4;
+  const pernaDir = passo === 0 ? 4 : 0;
+  ctx.fillStyle = corPernas;
+  ctx.fillRect(x + 6,  y + 38 - pernaEsq, 10, 18);
+  ctx.fillRect(x + 20, y + 38 - pernaDir, 10, 18);
+  // Botas pretas (detalhe na ponta dos pés)
+  ctx.fillStyle = '#111';
+  ctx.fillRect(x + 5,  y + 52 - pernaEsq, 12, 4);
+  ctx.fillRect(x + 19, y + 52 - pernaDir, 12, 4);
+  // No ar: ligeira flexão (sobrescreve)
+  if (!h.noChao) {
+    ctx.fillStyle = corPernas;
+    ctx.fillRect(x + 6,  y + 36, 10, 16);
+    ctx.fillRect(x + 20, y + 36, 10, 16);
+    ctx.fillStyle = '#111';
+    ctx.fillRect(x + 5,  y + 50, 12, 4);
+    ctx.fillRect(x + 19, y + 50, 12, 4);
+  }
+
+  // Tronco
+  ctx.fillStyle = corTronco;
+  ctx.fillRect(x + 4, y + 18, 28, 24);
+  // Detalhe metálico/lenço/luzes
+  ctx.fillStyle = corDetalhe;
+  ctx.fillRect(x + 4, y + 18, 28, 4);
+  ctx.fillRect(x + 4, y + 30, 28, 3);
+
+  // Braços — animação coordenada com andar e ataque.
+  // Braço de TRÁS (oposto à direção que olha) primeiro,
+  // depois braço da FRENTE em cima.
+  const balanco = aMover ? Math.sin(tempo * 0.4) * 4 : Math.sin(tempo * 0.05) * 1;
+  const corBraco = corTronco;
+  const corMao = '#f4d4b4'; // cor da pele
+  const dir = h.olhandoDireita ? 1 : -1;
+
+  // BRAÇO DE TRÁS — fica atrás do tronco, balança ao contrário das pernas
+  const xTras = h.olhandoDireita ? x + 2 : x + h.w - 8;
+  ctx.fillStyle = corBraco;
+  ctx.fillRect(xTras, y + 20 - balanco/2, 6, 18 + Math.abs(balanco));
+  ctx.fillStyle = corMao;
+  ctx.fillRect(xTras, y + 38 + balanco/2, 6, 4);
+
+  // BRAÇO DA FRENTE — durante ataque, estende para frente; senão balança.
+  if (h.ataqueAtivo > 0) {
+    // Braço estendido para a frente
+    ctx.fillStyle = corBraco;
+    if (h.olhandoDireita) {
+      ctx.fillRect(x + h.w - 8, y + 22, 18, 6);
+    } else {
+      ctx.fillRect(x - 10, y + 22, 18, 6);
+    }
+    // Mão na ponta
+    ctx.fillStyle = corMao;
+    ctx.fillRect(h.olhandoDireita ? x + h.w + 8 : x - 10, y + 22, 4, 6);
+  } else {
+    const xFrente = h.olhandoDireita ? x + h.w - 8 : x + 2;
+    ctx.fillStyle = corBraco;
+    ctx.fillRect(xFrente, y + 20 + balanco/2, 6, 18 + Math.abs(balanco));
+    ctx.fillStyle = corMao;
+    ctx.fillRect(xFrente, y + 38 - balanco/2, 6, 4);
+  }
+
+  // Acessório por armadura
+  if (h.armadura === 'cavaleiro') {
+    // Escudo no braço da frente
+    ctx.fillStyle = '#aaa';
+    const escX = h.olhandoDireita ? x - 4 : x + h.w - 4;
+    ctx.fillRect(escX, y + 22, 6, 18);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(escX + 1, y + 28, 4, 4);
+  } else if (h.armadura === 'ninja') {
+    // Lenço vermelho a esvoaçar para trás
+    ctx.fillStyle = '#c22';
+    const lx = h.olhandoDireita ? x - 8 : x + h.w;
+    ctx.fillRect(lx, y + 14 + Math.sin(tempo*0.2)*2, 10, 4);
+    ctx.fillRect(lx + (h.olhandoDireita ? -6 : 4), y + 16 + Math.sin(tempo*0.2)*2, 8, 3);
+  } else if (h.armadura === 'robo') {
+    // Luzes ciano a piscar no peito
+    ctx.fillStyle = (Math.floor(tempo/8)%2) ? '#0ff' : '#066';
+    ctx.fillRect(x + 14, y + 24, 4, 4);
+    ctx.fillRect(x + 22, y + 24, 4, 4);
+  } else if (h.armadura === 'mago_fogo') {
+    // Capuz com chamas no topo
+    ctx.fillStyle = '#400'; ctx.fillRect(x + 4, y - 6, 28, 8);
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#f80' : '#fc0';
+    ctx.fillRect(x + 8, y - 14, 4, 8);
+    ctx.fillRect(x + 16, y - 18, 4, 12);
+    ctx.fillRect(x + 24, y - 14, 4, 8);
+  } else if (h.armadura === 'mago_gelo') {
+    // Cristais de gelo nos ombros
+    ctx.fillStyle = '#cef';
+    ctx.fillRect(x + 2, y + 16, 4, 8);
+    ctx.fillRect(x + h.w - 6, y + 16, 4, 8);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 14, y + 22, 8, 2);
+  } else if (h.armadura === 'mago_terra') {
+    // Pedras nas costas / bandolete verde
+    ctx.fillStyle = '#9c0'; ctx.fillRect(x + 4, y + 6, 28, 4);
+    ctx.fillStyle = '#642';
+    ctx.fillRect(x + 6, y + 22, 6, 6);
+    ctx.fillRect(x + h.w - 12, y + 22, 6, 6);
+  } else if (h.armadura === 'mago_vento') {
+    // Linhas de vento à volta do herói
+    const off = Math.sin(tempo * 0.3) * 4;
+    ctx.fillStyle = 'rgba(200,255,200,0.6)';
+    const wx = h.olhandoDireita ? x - 14 : x + h.w + 4;
+    ctx.fillRect(wx, y + 20 + off, 12, 2);
+    ctx.fillRect(wx, y + 28 - off, 10, 2);
+    ctx.fillRect(wx, y + 36 + off, 14, 2);
+  } else if (h.armadura === 'angelical') {
+    // ASAS atrás do herói + halo dourado
+    const bater = Math.sin(tempo * 0.25) * 4;
+    ctx.fillStyle = '#fff';
+    // Asa esquerda
+    ctx.fillRect(x - 18, y + 14 + bater, 18, 6);
+    ctx.fillRect(x - 24, y + 20 + bater, 24, 6);
+    ctx.fillRect(x - 18, y + 26 + bater, 18, 6);
+    // Asa direita
+    ctx.fillRect(x + h.w, y + 14 - bater, 18, 6);
+    ctx.fillRect(x + h.w, y + 20 - bater, 24, 6);
+    ctx.fillRect(x + h.w, y + 26 - bater, 18, 6);
+    // Detalhe dourado nas asas
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x - 24, y + 24 + bater, 6, 2);
+    ctx.fillRect(x + h.w + 18, y + 24 - bater, 6, 2);
+    // Halo dourado por cima da cabeça
+    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(x + h.w/2, y - 4, 14, 4, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // Cabeça (rosto)
+  ctx.fillStyle = '#f4d4b4';
+  ctx.fillRect(x + 8, y + 4, 20, 16);
+  // Cabelo verde (sinal de Midoriya)
+  ctx.fillStyle = '#2c8';
+  ctx.fillRect(x + 6, y, 24, 8);
+  ctx.fillRect(x + 4, y + 2, 4, 8);
+  ctx.fillRect(x + 28, y + 2, 4, 8);
+  // Olhos — pupila branca dentro de fundo escuro (estilo anime)
+  // Quando ataca, olhos ficam mais determinados (mais finos).
+  const olhoH = h.ataqueAtivo > 0 ? 2 : 4;
+  ctx.fillStyle = '#000';
+  if (h.olhandoDireita) {
+    ctx.fillRect(x + 17, y + 10, 4, olhoH);
+    ctx.fillRect(x + 24, y + 10, 4, olhoH);
+    // Brilho branco
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 19, y + 10, 1, 1);
+    ctx.fillRect(x + 26, y + 10, 1, 1);
+  } else {
+    ctx.fillRect(x + 8,  y + 10, 4, olhoH);
+    ctx.fillRect(x + 15, y + 10, 4, olhoH);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 10, y + 10, 1, 1);
+    ctx.fillRect(x + 17, y + 10, 1, 1);
+  }
+  // Boca: sorriso normal, "O" quando salta, linha séria quando ataca
+  ctx.fillStyle = '#5a3020';
+  if (h.ataqueAtivo > 0) {
+    // Boca cerrada determinada
+    ctx.fillRect(x + 14, y + 16, 8, 1);
+  } else if (!h.noChao) {
+    // No ar: boca aberta surpreendida
+    ctx.fillRect(x + 16, y + 15, 4, 3);
+  } else {
+    // Sorriso pequenino
+    ctx.fillRect(x + 14, y + 16, 6, 1);
+    ctx.fillRect(x + 13, y + 15, 1, 1);
+    ctx.fillRect(x + 20, y + 15, 1, 1);
+  }
+
+  // Espada na mão (só na animação de ataque do Cavaleiro)
+  if (h.ataqueAtivo > 0 && h.armadura === 'cavaleiro') {
+    ctx.fillStyle = '#ddd';
+    const sx = h.olhandoDireita ? x + h.w : x - 40;
+    ctx.fillRect(sx, y + 20, 40, 6);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(h.olhandoDireita ? sx - 4 : sx + 40, y + 18, 4, 10);
+  }
+}
+
+/* ---------- DESENHO: INIMIGOS ---------- */
+function desenharInimigo(ini) {
+  // Flash branco quando atingido
+  const piscar = ini.atingido > 0 && Math.floor(ini.atingido/3) % 2 === 0;
+  ctx.fillStyle = piscar ? '#fff' : (ini.cor || '#6a2a2a');
+
+  // Render especial para bosses únicos
+  if (ini.tipo === 'shigaraki') {
+    desenharShigarakiBoss(ini);
+  } else if (ini.tipo === 'afo') {
+    desenharAFOBoss(ini);
+  } else {
+    // Corpo + sombra na parte de baixo (gradiente fake)
+    ctx.fillRect(ini.x, ini.y, ini.w, ini.h);
+    if (!piscar) {
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(ini.x, ini.y + ini.h - 8, ini.w, 8);
+      // Brilho no topo (highlight)
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(ini.x + 2, ini.y + 2, ini.w - 4, 3);
+    }
+    // Bracinhos pequenos a abanar
+    const balancoIni = Math.sin(tempo * 0.3 + ini.x * 0.01) * 3;
+    ctx.fillStyle = piscar ? '#fff' : (ini.cor || '#6a2a2a');
+    ctx.fillRect(ini.x - 4, ini.y + 14 + balancoIni, 6, 10);
+    ctx.fillRect(ini.x + ini.w - 2, ini.y + 14 - balancoIni, 6, 10);
+    // Garras (cor escura)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(ini.x - 4, ini.y + 22 + balancoIni, 6, 2);
+    ctx.fillRect(ini.x + ini.w - 2, ini.y + 22 - balancoIni, 6, 2);
+    // Olhos amarelos
+    ctx.fillStyle = '#ff0';
+    ctx.fillRect(ini.x + 6, ini.y + 8, 6, 6);
+    ctx.fillRect(ini.x + ini.w - 12, ini.y + 8, 6, 6);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(ini.x + 8, ini.y + 10, 3, 3);
+    ctx.fillRect(ini.x + ini.w - 10, ini.y + 10, 3, 3);
+    // Sobrancelhas zangadas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(ini.x + 5, ini.y + 6, 6, 2);
+    ctx.fillRect(ini.x + ini.w - 11, ini.y + 6, 6, 2);
+    // Dentes
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(ini.x + 10, ini.y + ini.h - 10, 4, 6);
+    ctx.fillRect(ini.x + ini.w - 14, ini.y + ini.h - 10, 4, 6);
+    // Asas: dragão e voador
+    if (ini.tipo === 'dragao') {
+      ctx.fillStyle = piscar ? '#fff' : '#5a1a6a';
+      ctx.fillRect(ini.x - 12, ini.y + 10, 14, 30);
+      ctx.fillRect(ini.x + ini.w - 2, ini.y + 10, 14, 30);
+    } else if (ini.tipo === 'voador') {
+      // Asas a bater (oscilam com tempo)
+      const bater = Math.sin(tempo*0.4) * 4;
+      ctx.fillStyle = piscar ? '#fff' : '#fc6';
+      ctx.fillRect(ini.x - 10, ini.y + 4 + bater, 12, 8);
+      ctx.fillRect(ini.x + ini.w - 2, ini.y + 4 + bater, 12, 8);
+    }
+  }
+
+  // Barra de vida (chefe)
+  if (ini.chefe) {
+    const bw = 100;
+    ctx.fillStyle = '#400'; ctx.fillRect(ini.x, ini.y - 16, bw, 8);
+    ctx.fillStyle = '#f44'; ctx.fillRect(ini.x, ini.y - 16, bw * (ini.vida / ini.vidaMax), 8);
+    if (ini.nome) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px Courier New';
+      ctx.textAlign = 'left';
+      ctx.fillText(ini.nome, ini.x, ini.y - 20);
+    }
+  }
+}
+
+// Render do Shigaraki como boss (não é igual ao da cutscene — está a lutar)
+function desenharShigarakiBoss(ini) {
+  const x = ini.x, y = ini.y;
+  const piscar = ini.atingido > 0 && Math.floor(ini.atingido/3) % 2 === 0;
+  // Manto escuro
+  ctx.fillStyle = piscar ? '#fff' : '#222';
+  ctx.fillRect(x, y + 30, ini.w, ini.h - 30);
+  // Cabeça
+  ctx.fillStyle = piscar ? '#fff' : '#d4c5a0';
+  ctx.fillRect(x + 10, y, 50, 40);
+  // Cabelo branco
+  ctx.fillStyle = '#eee';
+  ctx.fillRect(x + 5, y - 8, 60, 18);
+  ctx.fillRect(x + 5, y + 10, 12, 30);
+  ctx.fillRect(x + 53, y + 10, 12, 30);
+  // Mão na cara
+  ctx.fillStyle = piscar ? '#fff' : '#d4c5a0';
+  ctx.fillRect(x + 18, y + 8, 34, 30);
+  // Olhos vermelhos (pulsantes)
+  const intensidade = (Math.sin(tempo*0.15)+1)/2;
+  ctx.fillStyle = `rgb(255,${Math.floor(50*intensidade)},${Math.floor(50*intensidade)})`;
+  ctx.fillRect(x + 22, y + 18, 6, 6);
+  ctx.fillRect(x + 42, y + 18, 6, 6);
+}
+
+// Render do All For One — figura gigante encapuzada com máscara/respirador.
+function desenharAFOBoss(ini) {
+  const x = ini.x, y = ini.y;
+  const piscar = ini.atingido > 0 && Math.floor(ini.atingido/3) % 2 === 0;
+  // Aura escura roxa pulsante
+  const auraScale = 1 + Math.sin(tempo*0.08) * 0.05;
+  ctx.fillStyle = `rgba(160,40,200,${0.2 * auraScale})`;
+  ctx.fillRect(x - 16, y - 16, ini.w + 32, ini.h + 32);
+  // Manto preto-arroxeado
+  ctx.fillStyle = piscar ? '#fff' : '#1a0030';
+  ctx.fillRect(x, y + 50, ini.w, ini.h - 50);
+  // Detalhe vermelho no manto
+  ctx.fillStyle = piscar ? '#fff' : '#600';
+  ctx.fillRect(x + ini.w/2 - 2, y + 60, 4, ini.h - 70);
+  // Cabeça/máscara metálica
+  ctx.fillStyle = piscar ? '#fff' : '#333';
+  ctx.fillRect(x + 15, y, 60, 55);
+  // Tubos de respiração nas laterais
+  ctx.fillStyle = '#222';
+  ctx.fillRect(x + 5, y + 12, 10, 50);
+  ctx.fillRect(x + 75, y + 12, 10, 50);
+  // Detalhes dos tubos (segmentos)
+  ctx.fillStyle = '#666';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(x + 5, y + 14 + i*12, 10, 2);
+    ctx.fillRect(x + 75, y + 14 + i*12, 10, 2);
+  }
+  // Olhos vermelhos a brilhar (pulsantes)
+  const intensidade = (Math.sin(tempo*0.2)+1)/2;
+  ctx.fillStyle = `rgb(255,${Math.floor(40*intensidade)},${Math.floor(40*intensidade)})`;
+  ctx.fillRect(x + 25, y + 18, 8, 10);
+  ctx.fillRect(x + 57, y + 18, 8, 10);
+  // Boca (grelha do respirador)
+  ctx.fillStyle = '#000'; ctx.fillRect(x + 30, y + 38, 30, 12);
+  ctx.fillStyle = '#444';
+  for (let i = 0; i < 3; i++) ctx.fillRect(x + 32 + i*10, y + 40, 6, 8);
+  // Chifres no topo da máscara
+  ctx.fillStyle = piscar ? '#fff' : '#222';
+  ctx.fillRect(x + 18, y - 8, 6, 14);
+  ctx.fillRect(x + 66, y - 8, 6, 14);
+}
+
+/* ---------- DESENHO: PROJÉCTEIS ---------- */
+// Glow por tipo de projéctil — cor do halo luminoso.
+const GLOW_PROJ = {
+  shuriken:'#fff', laser:'#0ff', fogo:'#f80', gelo:'#cef',
+  terra:'#963', vento:'#9f9', pena:'#fc0', chama_azul:'#08f', feixe:'#ffe'
+};
+function desenharProjectil(p) {
+  ctx.shadowColor = GLOW_PROJ[p.tipo] || '#fff';
+  ctx.shadowBlur = 14;
+  desenharProjectilInterno(p);
+  ctx.shadowBlur = 0;
+}
+function desenharProjectilInterno(p) {
+  if (p.tipo === 'shuriken') {
+    // Shuriken: estrela rotativa em preto + vermelho
+    ctx.save();
+    ctx.translate(p.x + p.w/2, p.y + p.h/2);
+    ctx.rotate(p.rot || 0);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-8, -2, 16, 4);
+    ctx.fillRect(-2, -8, 4, 16);
+    ctx.fillStyle = '#c22';
+    ctx.fillRect(-2, -2, 4, 4);
+    ctx.restore();
+  } else if (p.tipo === 'laser') {
+    // Laser: barra ciano com brilho branco no meio
+    ctx.fillStyle = '#0ff';
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x, p.y + 2, p.w, 2);
+  } else if (p.tipo === 'fogo') {
+    // Bola de fogo: laranja com núcleo amarelo a piscar
+    ctx.fillStyle = '#c30';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = (Math.floor(tempo/3)%2) ? '#f80' : '#fc0';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 5, 0, Math.PI*2); ctx.fill();
+    // Rasto de fagulhas
+    ctx.fillStyle = '#f40';
+    ctx.fillRect(p.x - 6, p.y + p.h/2, 6, 3);
+  } else if (p.tipo === 'gelo') {
+    // Cristal de gelo (losango)
+    ctx.fillStyle = '#48c';
+    ctx.beginPath();
+    ctx.moveTo(p.x + p.w/2, p.y);
+    ctx.lineTo(p.x + p.w, p.y + p.h/2);
+    ctx.lineTo(p.x + p.w/2, p.y + p.h);
+    ctx.lineTo(p.x, p.y + p.h/2);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#cef';
+    ctx.fillRect(p.x + p.w/2 - 1, p.y + 4, 2, p.h - 8);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x + p.w/2 - 1, p.y + 6, 2, 4);
+  } else if (p.tipo === 'terra') {
+    // Pedra com pintas
+    ctx.fillStyle = '#642';
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = '#963';
+    ctx.fillRect(p.x + 4, p.y + 4, p.w - 8, p.h - 8);
+    ctx.fillStyle = '#420';
+    ctx.fillRect(p.x + 6, p.y + 8, 3, 3);
+    ctx.fillRect(p.x + p.w - 10, p.y + 12, 3, 3);
+    ctx.fillRect(p.x + 12, p.y + p.h - 8, 3, 3);
+  } else if (p.tipo === 'vento') {
+    // 3 linhas onduladas verde-claro
+    const off = Math.sin(tempo * 0.4) * 3;
+    ctx.fillStyle = '#9f9';
+    ctx.fillRect(p.x, p.y + 1, p.w, 2);
+    ctx.fillStyle = '#cfc';
+    ctx.fillRect(p.x, p.y + 5 + off, p.w, 2);
+    ctx.fillStyle = '#9f9';
+    ctx.fillRect(p.x, p.y + 9 - off, p.w, 2);
+    // Ponta brilhante à frente
+    ctx.fillStyle = '#fff';
+    const pontaX = p.vx > 0 ? p.x + p.w - 4 : p.x;
+    ctx.fillRect(pontaX, p.y, 4, p.h);
+  } else if (p.tipo === 'pena') {
+    // Pena dourada/branca rotativa
+    ctx.save();
+    ctx.translate(p.x + p.w/2, p.y + p.h/2);
+    ctx.rotate(p.rot || 0);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(-11, 0);
+    ctx.lineTo(0, -7);
+    ctx.lineTo(11, 0);
+    ctx.lineTo(0, 7);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(-11, -1, 22, 2); // raque dourada
+    ctx.restore();
+  } else if (p.tipo === 'chama_azul') {
+    // Chama azul (mesma forma do fogo, paleta gélida)
+    ctx.fillStyle = '#06c';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = (Math.floor(tempo/3)%2) ? '#0cf' : '#cff';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x + p.w/2 - 2, p.y + 4, 4, 4);
+  } else if (p.tipo === 'feixe') {
+    // Feixe divino: dourado com núcleo branco e halo
+    ctx.fillStyle = 'rgba(255,255,200,0.4)';
+    ctx.fillRect(p.x - 4, p.y - 3, p.w + 8, p.h + 6);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x, p.y + p.h/2 - 1, p.w, 3);
+  }
+}
+
+/* ---------- DESENHO: HITBOX (debug visual leve) ---------- */
+function desenharHitbox(hb) {
+  ctx.fillStyle = 'rgba(255,255,180,0.25)';
+  ctx.fillRect(hb.x, hb.y, hb.w, hb.h);
+}
+
+/* ---------- HUD (corações, pontos) ---------- */
+function desenharHUD() {
+  // Corações
+  for (let i = 0; i < heroi.vidaMax; i++) {
+    desenharCoracao(20 + i * 36, 20, i < heroi.vida);
+  }
+  // Pontos
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 20px Courier New';
+  ctx.textAlign = 'right';
+  ctx.fillText('PONTOS: ' + pontos, W - 20, 36);
+  // Armadura actual
+  ctx.textAlign = 'left';
+  ctx.font = '14px Courier New';
+  ctx.fillStyle = '#aaf';
+  ctx.fillText('ARMADURA: ' + heroi.armadura.toUpperCase(), 20, 70);
+}
+
+function desenharCoracao(x, y, cheio) {
+  ctx.fillStyle = cheio ? '#f44' : '#444';
+  // Coração feito com 2 quadrados + 1 triângulo (formas geométricas)
+  ctx.fillRect(x,    y,    10, 10);
+  ctx.fillRect(x+12, y,    10, 10);
+  ctx.beginPath();
+  ctx.moveTo(x,    y + 8);
+  ctx.lineTo(x+22, y + 8);
+  ctx.lineTo(x+11, y + 24);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/* ---------- ESTADO: GAME OVER ---------- */
+function atualizarGameOver() {
+  tocarMusica('gameover');
+  // Mantém o último frame por baixo
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f44';
+  ctx.font = 'bold 64px Courier New';
+  ctx.fillText('GAME OVER', W/2, H/2 - 20);
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px Courier New';
+  ctx.fillText('PRIME R PARA REINICIAR', W/2, H/2 + 30);
+  ctx.fillStyle = '#888';
+  ctx.fillText('PONTOS: ' + pontos, W/2, H/2 + 60);
+
+  if (teclasJustNow['KeyR']) {
+    iniciarFase(faseAtual);
+    estado = 'jogo';
+  }
+}
+
+/* ---------- ESTADO: VITÓRIA ---------- */
+function atualizarVitoria() {
+  tocarMusica('vitoria');
+  const f = FASES[faseAtual];
+  const haProxima = (faseAtual + 1) < FASES.length;
+  // Ecrã especial para o final do jogo (Shigaraki derrotado)
+  if (f.finalDoJogo) {
+    ctx.fillStyle = 'rgba(20,0,40,0.92)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    const cor1 = (Math.floor(tempo/15)%2) ? '#fc0' : '#fff';
+    ctx.fillStyle = cor1;
+    ctx.font = 'bold 60px Courier New';
+    ctx.fillText('MUNDO SALVO!', W/2, H/2 - 130);
+    ctx.fillStyle = '#4f4';
+    ctx.font = 'bold 40px Courier New';
+    ctx.fillText('ALL FOR ONE DERROTADO', W/2, H/2 - 70);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Courier New';
+    ctx.fillText('Midoriya tornou-se LENDA.', W/2, H/2 - 30);
+    ctx.fillStyle = '#fc0';
+    ctx.font = 'bold 22px Courier New';
+    ctx.fillText('★ ARMADURA ANGELICAL DESBLOQUEADA ★', W/2, H/2 + 5);
+    ctx.fillStyle = '#fc4';
+    ctx.font = 'bold 24px Courier New';
+    ctx.fillText('PONTUAÇÃO FINAL: ' + pontos, W/2, H/2 + 55);
+    ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#888';
+    ctx.font = '16px Courier New';
+    ctx.fillText('Para o Luís Manuel ❤  ·  ENTER para voltar ao menu', W/2, H/2 + 105);
+    if (teclasJustNow['Enter']) estado = 'menu';
+    return;
+  }
+  ctx.fillStyle = 'rgba(0,40,0,0.85)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#4f4';
+  ctx.font = 'bold 48px Courier New';
+  ctx.fillText('FASE ' + f.numero + ' COMPLETA', W/2, H/2 - 60);
+  ctx.fillStyle = '#fc4';
+  ctx.font = 'bold 28px Courier New';
+  if (f.recompensa) {
+    ctx.fillText('NOVA ARMADURA: ' + f.recompensa.toUpperCase(), W/2, H/2 - 10);
+  }
+  ctx.fillStyle = '#fff';
+  ctx.font = '18px Courier New';
+  ctx.fillText('PONTOS: ' + pontos, W/2, H/2 + 30);
+  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#888';
+  ctx.fillText(haProxima
+    ? 'PRIME ENTER PARA A FASE ' + (f.numero + 1) + ': ' + FASES[faseAtual+1].nome
+    : 'PRIME ENTER PARA VOLTAR AO MENU', W/2, H/2 + 80);
+
+  if (teclasJustNow['Enter']) {
+    if (haProxima) { iniciarFase(faseAtual + 1); estado = 'cutscene'; }
+    else { estado = 'menu'; }
+  }
+}
+
+/* ---------- ARRANQUE ---------- */
+heroi.y = CHAO_Y - heroi.h;
+loop();
+</script>
+</body>
+</html>
