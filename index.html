@@ -400,8 +400,8 @@ const heroi = {
   invencivel: 0, // frames de invencibilidade após levar dano
   olhandoDireita: true,
   armadura: 'cavaleiro',
-  // Todas as 8 armaduras desbloqueadas para o Luís experimentar.
-  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical'],
+  // Armaduras já desbloqueadas (todas, para o Luís experimentar).
+  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa'],
   voando: false,             // só Angelical: activa-se com duplo-clique no salto
   ultimoSaltoTime: -100,     // para detectar duplo-clique
   angelicalCounter: 0,       // cicla os 3 ataques: pena → chama azul → feixe
@@ -459,6 +459,7 @@ let projeteisInimigo = []; // projécteis lançados pelos chefes
 let bossDerrotadoNaFase = false; // flag fiável: foi marcada quando o boss morre.
 let slowmoTimer = 0;             // frames de slow-motion (hit-stop dramático)
 let flashTimer = 0;              // frames de flash branco no ecrã
+let ondaPrincesa = null;         // pulso de energia 360° da Princesa Guerreira
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
 
@@ -557,6 +558,19 @@ function tentarAtacar() {
     som(1100, 0.06, 'triangle');
     projeteis.push({ tipo:'vento', x: cx, y: cy, vx: 11*dir, vy: 0,
       w: 38, h: 12, dano: 1, vida: 90, atravessa: true });
+  } else if (heroi.armadura === 'princesa') {
+    // PRINCESA GUERREIRA: pulso de energia 360° à volta dela (AOE).
+    // Atinge TODOS os inimigos no raio. Dano 2.
+    som(880, 0.05, 'sine');
+    som(1200, 0.1, 'square', 0.12);
+    som(1500, 0.12, 'sine', 0.1);
+    ondaPrincesa = {
+      cx: heroi.x + heroi.w/2,
+      cy: heroi.y + heroi.h/2,
+      raio: 14, raioMax: 150, vida: 26, dano: 2,
+      atingidos: new Set(),
+    };
+    tremerEcra(6);
   } else if (heroi.armadura === 'angelical') {
     // 3 ataques alternados: pena → chama azul → feixe divino
     const tipoAng = ['pena','chama_azul','feixe'][heroi.angelicalCounter];
@@ -582,6 +596,28 @@ function tentarAtacar() {
 // O texto vem agora da configuração da fase actual (FASES[faseAtual]).
 let cutsceneIndice = 0;     // letras já reveladas
 let cutsceneTimer = 0;      // controla velocidade da revelação
+
+/* ---------- HISTÓRIA INICIAL ---------- */
+// Cutscene narrativa antes da Fase 1: explica como o vilão invadiu a cidade.
+const HISTORIA = [
+  { img: 'menu',   tom: '#1a0a2a',
+    texto: 'Há muito tempo... a cidade vivia em paz.' },
+  { img: 'vilao',  tom: '#2a0010',
+    texto: 'Até que UM VILÃO invadiu tudo.' },
+  { img: 'vilao',  tom: '#400010',
+    texto: 'Espalhou o caos.\nTrouxe a morte e a destruição.' },
+  { img: 'base',   tom: '#100020',
+    texto: 'Numa zona escondida da cidade, construiu a sua base secreta.' },
+  { img: 'base',   tom: '#100010',
+    texto: 'Os habitantes esconderam-se com medo.\nNinguém ajuda o herói.\nSó outros vilões apoiam o vilão.' },
+  { img: 'heroi',  tom: '#0a1a30',
+    texto: 'Mas um único herói se levanta contra a escuridão...' },
+  { img: 'heroi',  tom: '#0a2030',
+    texto: 'MIDORIYA.\nVeste a armadura.\nDefende a cidade.' },
+];
+let historiaSlide = 0;
+let historiaIndice = 0;
+let historiaTimer = 0;
 
 /* ============================================================
    SISTEMA DE FASES DATA-DRIVEN
@@ -777,6 +813,7 @@ function iniciarFase(idx) {
   bossDerrotadoNaFase = false;
   slowmoTimer = 0;
   flashTimer = 0;
+  ondaPrincesa = null;
   camera.x = 0;
   // Reset cutscene da fase
   cutsceneIndice = 0; cutsceneTimer = 0;
@@ -813,6 +850,7 @@ function loop(now) {
   tempo += dtF;
   // Actualiza o estado actual e desenha
   if (estado === 'menu')      atualizarMenu();
+  else if (estado === 'historia') atualizarHistoria();
   else if (estado === 'cutscene') atualizarCutscene();
   else if (estado === 'jogo')     atualizarJogo();
   else if (estado === 'gameover') atualizarGameOver();
@@ -852,9 +890,94 @@ function atualizarMenu() {
   ctx.fillText('Para o Luís Manuel ❤', W/2, H - 38);
 
   if (teclasJustNow['Enter']) {
-    iniciarFase(0);
-    estado = 'cutscene';
+    // Antes da Fase 1, mostra a história inicial.
+    historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
+    estado = 'historia';
     som(523, 0.1);
+  }
+}
+
+/* ---------- ESTADO: HISTÓRIA INICIAL ---------- */
+function atualizarHistoria() {
+  if (audioCtx) tocarMusica('menu');
+  const slide = HISTORIA[historiaSlide];
+
+  // Fundo: imagem temática (com tom semi-transparente por cima para escurecer)
+  let imgBg = null;
+  if (slide.img === 'menu' && imgMenuPronta) imgBg = imgMenu;
+  else if (slide.img === 'vilao' && imgVilaoPronto) imgBg = imgVilao;
+  else if (slide.img === 'heroi' && imgHeroiPronto) imgBg = imgHeroi;
+  else if (slide.img === 'base' && imgFases['10-base'] && imgFases['10-base'].pronto)
+    imgBg = imgFases['10-base'].img;
+
+  if (imgBg) {
+    // Centra a imagem mantendo proporção
+    const escala = Math.max(W / imgBg.width, H / imgBg.height);
+    const dw = imgBg.width * escala, dh = imgBg.height * escala;
+    ctx.drawImage(imgBg, (W - dw)/2, (H - dh)/2, dw, dh);
+  } else {
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  }
+  // Tom escuro por cima para contraste
+  ctx.fillStyle = slide.tom;
+  ctx.globalAlpha = 0.55;
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+
+  // Caixa de texto centrada em baixo
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(40, H - 200, W - 80, 160);
+  ctx.strokeStyle = '#fc0'; ctx.lineWidth = 3;
+  ctx.strokeRect(40, H - 200, W - 80, 160);
+
+  // Texto a aparecer letra a letra
+  historiaTimer += dtF;
+  if (historiaTimer >= 1.5 && historiaIndice < slide.texto.length) {
+    historiaTimer = 0;
+    historiaIndice++;
+    if (slide.texto[historiaIndice-1] !== ' ' && slide.texto[historiaIndice-1] !== '\n') {
+      som(220, 0.02, 'square', 0.05);
+    }
+  }
+  // Render texto multi-linha
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px Courier New';
+  ctx.textAlign = 'center';
+  const visivel = slide.texto.substring(0, historiaIndice);
+  const linhas = visivel.split('\n');
+  const totalLinhas = slide.texto.split('\n').length;
+  const yBase = H - 180 + (3 - totalLinhas) * 14;
+  linhas.forEach((linha, i) => {
+    ctx.fillText(linha, W/2, yBase + i * 32);
+  });
+
+  // Indicador "ENTER"
+  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fc0' : '#888';
+  ctx.font = '14px Courier New';
+  ctx.fillText('ENTER ▶', W - 80, H - 50);
+
+  // Indicador de progresso (pontos no topo)
+  const totalSlides = HISTORIA.length;
+  for (let i = 0; i < totalSlides; i++) {
+    ctx.fillStyle = i <= historiaSlide ? '#fc0' : '#444';
+    ctx.fillRect(W/2 - totalSlides*8 + i*16, 30, 10, 4);
+  }
+
+  if (teclasJustNow['Enter']) {
+    if (historiaIndice < slide.texto.length) {
+      // Revela tudo de uma vez
+      historiaIndice = slide.texto.length;
+    } else if (historiaSlide + 1 < HISTORIA.length) {
+      // Avança slide
+      historiaSlide++;
+      historiaIndice = 0;
+      historiaTimer = 0;
+      som(660, 0.06);
+    } else {
+      // Fim da história → Fase 1
+      iniciarFase(0);
+      estado = 'cutscene';
+    }
   }
 }
 
@@ -1086,6 +1209,44 @@ function atualizarJogo() {
     hitboxAtaque = null;
   }
 
+  // 3a. Onda da Princesa (AOE 360° expansiva)
+  if (ondaPrincesa) {
+    ondaPrincesa.raio += 7 * dtF;
+    ondaPrincesa.cx = heroi.x + heroi.w/2; // segue o herói
+    ondaPrincesa.cy = heroi.y + heroi.h/2;
+    ondaPrincesa.vida -= dtF;
+    for (const ini of inimigos) {
+      if (ondaPrincesa.atingidos.has(ini) || ini.atingido > 0) continue;
+      const dxi = (ini.x + ini.w/2) - ondaPrincesa.cx;
+      const dyi = (ini.y + ini.h/2) - ondaPrincesa.cy;
+      const dist = Math.sqrt(dxi*dxi + dyi*dyi);
+      if (dist <= ondaPrincesa.raio) {
+        ondaPrincesa.atingidos.add(ini);
+        ini.vida -= ondaPrincesa.dano;
+        ini.atingido = 12;
+        ini.vx = dxi > 0 ? 4 : -4;
+        ini.vy = dyi < 0 ? -3 : 0;
+        somDano();
+        lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 8, 4);
+        tremerEcra(ini.chefe ? 6 : 2);
+        if (ini.vida <= 0) {
+          pontos += ini.pontos;
+          somMorte();
+          lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, '#fc0', 16, 5);
+          tremerEcra(ini.chefe ? 16 : 5);
+          largarPickup(ini);
+          if (ini.chefe) {
+            bossDerrotadoNaFase = true;
+            slowmoTimer = 36; flashTimer = 8;
+          }
+        }
+      }
+    }
+    if (ondaPrincesa.vida <= 0 || ondaPrincesa.raio > ondaPrincesa.raioMax) {
+      ondaPrincesa = null;
+    }
+  }
+
   // 3b. Projécteis (shurikens / lasers / etc.)
   for (const p of projeteis) {
     p.x += p.vx * dtF; p.y += p.vy * dtF; p.vida -= dtF;
@@ -1270,6 +1431,7 @@ function atualizarJogo() {
   for (const pt of particulas) desenharParticula(pt);
   desenharHeroi();
   if (hitboxAtaque) desenharHitbox(hitboxAtaque);
+  if (ondaPrincesa) desenharOndaPrincesa();
   ctx.restore();
   ctx.restore();
   // Iluminação dinâmica (cenas escuras): cone de luz à volta do herói.
@@ -1876,7 +2038,8 @@ function desenharHeroi() {
   else if (h.armadura === 'mago_gelo')   { corPernas = '#246';    corTronco = '#48c';    corDetalhe = '#cff'; }
   else if (h.armadura === 'mago_terra')  { corPernas = '#430';    corTronco = '#741';    corDetalhe = '#9c0'; }
   else if (h.armadura === 'mago_vento')  { corPernas = '#272';    corTronco = '#4b6';    corDetalhe = '#fff'; }
-  else /* angelical */                   { corPernas = '#ddc';    corTronco = '#fff';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'angelical')   { corPernas = '#ddc';    corTronco = '#fff';    corDetalhe = '#fc0'; }
+  else /* princesa */                    { corPernas = '#fc0';    corTronco = '#fc0';    corDetalhe = '#fff'; }
 
   // Pernas — animação de andar quando se move no chão
   const aMover = (h.vx !== 0) && h.noChao;
@@ -1990,6 +2153,33 @@ function desenharHeroi() {
     ctx.fillRect(wx, y + 20 + off, 12, 2);
     ctx.fillRect(wx, y + 28 - off, 10, 2);
     ctx.fillRect(wx, y + 36 + off, 14, 2);
+  } else if (h.armadura === 'princesa') {
+    // PRINCESA GUERREIRA: vestido dourado + cinto branco + coroa
+    // Saia em trapézio que alarga até aos pés
+    ctx.fillStyle = '#fc0';
+    ctx.beginPath();
+    ctx.moveTo(x + 4, y + 30);
+    ctx.lineTo(x + h.w - 4, y + 30);
+    ctx.lineTo(x + h.w + 8, y + h.h);
+    ctx.lineTo(x - 8, y + h.h);
+    ctx.closePath();
+    ctx.fill();
+    // Cinto branco
+    ctx.fillStyle = '#fff'; ctx.fillRect(x - 2, y + 30, h.w + 4, 4);
+    // Detalhe rosa no peito (corpete)
+    ctx.fillStyle = '#f8c'; ctx.fillRect(x + 12, y + 22, 12, 4);
+    // Joia central dourada
+    ctx.fillStyle = '#fff'; ctx.fillRect(x + h.w/2 - 1, y + 24, 2, 2);
+    // COROA por cima da cabeça (sobrepõe-se ao cabelo)
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + 6, y - 6, 24, 4);            // base
+    ctx.fillRect(x + 8, y - 12, 4, 6);             // pico esquerdo
+    ctx.fillRect(x + 16, y - 14, 4, 8);            // pico central (mais alto)
+    ctx.fillRect(x + 24, y - 12, 4, 6);            // pico direito
+    // Joias da coroa
+    ctx.fillStyle = '#f0a'; ctx.fillRect(x + 17, y - 8, 2, 2);
+    ctx.fillStyle = '#0ff'; ctx.fillRect(x + 9, y - 6, 2, 2);
+    ctx.fillRect(x + 25, y - 6, 2, 2);
   } else if (h.armadura === 'angelical') {
     // ASAS atrás do herói + halo dourado
     const bater = Math.sin(tempo * 0.25) * 4;
@@ -2061,6 +2251,19 @@ function desenharHeroi() {
     ctx.fillRect(sx, y + 20, 40, 6);
     ctx.fillStyle = '#fc0';
     ctx.fillRect(h.olhandoDireita ? sx - 4 : sx + 40, y + 18, 4, 10);
+  }
+  // PRINCESA: 2 espadas estendidas para ambos os lados durante o ataque AOE
+  if (h.ataqueAtivo > 0 && h.armadura === 'princesa') {
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(x - 28, y + 20, 28, 5);   // espada esquerda
+    ctx.fillRect(x + h.w, y + 20, 28, 5);  // espada direita
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x - 30, y + 18, 4, 9);    // punho esquerdo
+    ctx.fillRect(x + h.w + 26, y + 18, 4, 9); // punho direito
+    // Pontas brilhantes
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 4, y + 21, 4, 3);
+    ctx.fillRect(x + h.w, y + 21, 4, 3);
   }
 }
 
@@ -2311,6 +2514,35 @@ function desenharProjectilInterno(p) {
     ctx.fillStyle = '#fff';
     ctx.fillRect(p.x, p.y + p.h/2 - 1, p.w, 3);
   }
+}
+
+/* ---------- DESENHO: ONDA DA PRINCESA ---------- */
+function desenharOndaPrincesa() {
+  const o = ondaPrincesa;
+  const alpha = Math.min(1, o.vida / 26);
+  ctx.save();
+  // Anel principal dourado
+  ctx.globalAlpha = alpha * 0.9;
+  ctx.strokeStyle = '#fc0';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2);
+  ctx.stroke();
+  // Anel interior branco brilhante
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(o.cx, o.cy, o.raio * 0.85, 0, Math.PI*2);
+  ctx.stroke();
+  // Faíscas rosas a sair
+  ctx.globalAlpha = alpha * 0.6;
+  ctx.fillStyle = '#f8c';
+  for (let a = 0; a < Math.PI*2; a += Math.PI/8) {
+    const px = o.cx + Math.cos(a) * o.raio;
+    const py = o.cy + Math.sin(a) * o.raio;
+    ctx.fillRect(px - 2, py - 2, 4, 4);
+  }
+  ctx.restore();
 }
 
 /* ---------- DESENHO: HITBOX (debug visual leve) ---------- */
