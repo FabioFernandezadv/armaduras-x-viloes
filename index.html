@@ -508,6 +508,24 @@ let armorChangeTimer = 0;        // frames: cutscene de troca de armadura
 let armorChangeName = '';        // nome da armadura para mostrar
 let vitoriaTimer = 0;            // controla fase cinemática vs ecrã de stats
 let nivelNG = 0;                 // New Game+ (0 = primeira volta; cada AFO derrotado +1)
+let bossIntroFeito = false;      // já foi mostrada a intro do boss desta fase?
+let bossIntroTimer = 0;          // frames de duração da intro
+let bossIntroFala = '';          // frase do boss (varia por chefe)
+let bossIntroNome = '';          // nome do boss
+
+// Falas dos bosses na intro
+const FALA_BOSS = {
+  'DRAGÃO': 'RUUUAAARRR! VAIS ARDER!',
+  'DEMÓNIO DE FOGO': 'AS CHAMAS VÃO CONSUMIR-TE!',
+  'COMISSÁRIO CORRUPTO': 'ESTÁS PRESO! PARA SEMPRE!',
+  'DOUTOR MUTANTE': 'VOU OPERAR-TE... SEM ANESTESIA!',
+  'SHIGARAKI': 'VAIS DESINTEGRAR-TE COMIGO!',
+  'GLITCH BOSS': 'ERRO 404: HERÓI NÃO ENCONTRADO!',
+  'CHEF MUTANTE': 'BEM-VINDO AO MENU DE HOJE: TU!',
+  'PALHAÇO DO MAL': 'VAMOS DIVERTIR-NOS... ATÉ MORRERES!',
+  'PROFESSOR FANTASMA': 'REPROVADO. PERMANENTEMENTE.',
+  'ALL FOR ONE': 'EU SOU O VERDADEIRO MAL. PREPARA-TE.',
+};
 
 /* ============================================================
    SISTEMA DE SAVE (localStorage)
@@ -851,6 +869,9 @@ const HISTORIA = [
 let historiaSlide = 0;
 let historiaIndice = 0;
 let historiaTimer = 0;
+let historiaSlideTimer = 0; // Ken Burns: tempo desde início do slide
+let historiaFadeOut = 0;    // 0 = visível, vai a 1 e troca slide
+let historiaParticulas = []; // partículas decorativas por slide
 
 /* ============================================================
    SISTEMA DE FASES DATA-DRIVEN
@@ -1070,6 +1091,8 @@ function iniciarFase(idx) {
   projeteisInimigo = [];
   shake = 0;
   bossDerrotadoNaFase = false;
+  bossIntroFeito = false;
+  bossIntroTimer = 0;
   slowmoTimer = 0;
   flashTimer = 0;
   ondaPrincesa = null;
@@ -1114,6 +1137,8 @@ function loop(now) {
   else if (estado === 'cutscene') atualizarCutscene();
   else if (estado === 'jogo')     atualizarJogo();
   else if (estado === 'pausa')    atualizarPausa();
+  else if (estado === 'boss_intro') atualizarBossIntro();
+  else if (estado === 'transicao') atualizarTransicaoFase();
   else if (estado === 'gameover') atualizarGameOver();
   else if (estado === 'vitoria')  atualizarVitoria();
 
@@ -1187,6 +1212,7 @@ function atualizarMenu() {
     nivelNG = 0;
     heroi.armadura = 'cavaleiro';
     historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
+    historiaSlideTimer = 0; historiaParticulas = []; historiaFadeOut = 0;
     estado = 'historia';
     som(330, 0.15, 'sawtooth');
   }
@@ -1196,8 +1222,9 @@ function atualizarMenu() {
 function atualizarHistoria() {
   if (audioCtx) tocarMusica('menu');
   const slide = HISTORIA[historiaSlide];
+  historiaSlideTimer += dtF;
 
-  // Fundo: imagem temática (com tom semi-transparente por cima para escurecer)
+  // Fundo: imagem temática
   let imgBg = null;
   if (slide.img === 'menu' && imgMenuPronta) imgBg = imgMenu;
   else if (slide.img === 'vilao' && imgVilaoPronto) imgBg = imgVilao;
@@ -1205,11 +1232,14 @@ function atualizarHistoria() {
   else if (slide.img === 'base' && imgFases['10-base'] && imgFases['10-base'].pronto)
     imgBg = imgFases['10-base'].img;
 
+  // KEN BURNS: zoom lento da imagem ao longo do slide (efeito documentário)
+  const zoom = 1 + historiaSlideTimer * 0.0008;
+  // Pan ligeiro lateral
+  const panX = Math.sin(historiaSlideTimer * 0.005) * 15;
   if (imgBg) {
-    // Centra a imagem mantendo proporção
-    const escala = Math.max(W / imgBg.width, H / imgBg.height);
+    const escala = Math.max(W / imgBg.width, H / imgBg.height) * zoom;
     const dw = imgBg.width * escala, dh = imgBg.height * escala;
-    ctx.drawImage(imgBg, (W - dw)/2, (H - dh)/2, dw, dh);
+    ctx.drawImage(imgBg, (W - dw)/2 + panX, (H - dh)/2, dw, dh);
   } else {
     ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   }
@@ -1218,6 +1248,27 @@ function atualizarHistoria() {
   ctx.globalAlpha = 0.55;
   ctx.fillRect(0, 0, W, H);
   ctx.globalAlpha = 1;
+
+  // PARTÍCULAS DECORATIVAS — varia por slide
+  const corPart = slide.img === 'vilao' ? '#f44'
+                : slide.img === 'heroi' ? '#fc0'
+                : slide.img === 'base'  ? '#a0f'
+                : '#fff';
+  if (Math.random() < 0.3) {
+    historiaParticulas.push({
+      x: Math.random() * W, y: H + 10,
+      vx: (Math.random()-0.5)*0.5, vy: -0.8 - Math.random()*1.2,
+      vida: 240, tam: 2 + Math.random()*3, cor: corPart,
+    });
+  }
+  for (const p of historiaParticulas) {
+    p.x += p.vx * dtF; p.y += p.vy * dtF; p.vida -= dtF;
+    ctx.globalAlpha = Math.min(1, p.vida / 240) * 0.7;
+    ctx.fillStyle = p.cor;
+    ctx.fillRect(p.x, p.y, p.tam, p.tam);
+  }
+  ctx.globalAlpha = 1;
+  historiaParticulas = historiaParticulas.filter(p => p.vida > 0 && p.y > -10);
 
   // Caixa de texto centrada em baixo
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
@@ -1258,20 +1309,36 @@ function atualizarHistoria() {
     ctx.fillRect(W/2 - totalSlides*8 + i*16, 30, 10, 4);
   }
 
+  // FADE OUT entre slides (transição cinematográfica)
+  if (historiaFadeOut > 0) {
+    historiaFadeOut += dtF * 0.06;
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, historiaFadeOut)})`;
+    ctx.fillRect(0, 0, W, H);
+    if (historiaFadeOut >= 1) {
+      // Trocar slide ou terminar história
+      if (historiaSlide + 1 < HISTORIA.length) {
+        historiaSlide++;
+        historiaIndice = 0;
+        historiaTimer = 0;
+        historiaSlideTimer = 0;
+        historiaParticulas = [];
+        historiaFadeOut = 0;
+      } else {
+        iniciarFase(0);
+        estado = 'cutscene';
+        historiaFadeOut = 0;
+      }
+    }
+    return;
+  }
+
   if (teclasJustNow['Enter']) {
     if (historiaIndice < slide.texto.length) {
-      // Revela tudo de uma vez
-      historiaIndice = slide.texto.length;
-    } else if (historiaSlide + 1 < HISTORIA.length) {
-      // Avança slide
-      historiaSlide++;
-      historiaIndice = 0;
-      historiaTimer = 0;
-      som(660, 0.06);
+      historiaIndice = slide.texto.length; // revela tudo
     } else {
-      // Fim da história → Fase 1
-      iniciarFase(0);
-      estado = 'cutscene';
+      // Inicia fade out
+      historiaFadeOut = 0.01;
+      som(660, 0.06);
     }
   }
 }
@@ -1385,6 +1452,22 @@ function atualizarJogo() {
   if (teclasJustNow['KeyP'] || teclasJustNow['Escape']) {
     estado = 'pausa';
     return;
+  }
+  // BOSS INTRO: quando o herói chega perto do chefe pela primeira vez
+  if (!bossIntroFeito) {
+    const bossPerto = inimigos.find(i => i.chefe && Math.abs(heroi.x - i.x) < 600);
+    if (bossPerto) {
+      bossIntroFeito = true;
+      bossIntroNome = bossPerto.nome || 'CHEFE';
+      bossIntroFala = FALA_BOSS[bossIntroNome] || 'AGORA TENS DE LUTAR COMIGO!';
+      bossIntroTimer = 110; // ~1.8s
+      tremerEcra(10);
+      // Som dramático
+      som(80, 0.4, 'sawtooth', 0.2);
+      som(160, 0.3, 'square', 0.15);
+      estado = 'boss_intro';
+      return;
+    }
   }
   // Música adaptativa:
   //  - se há boss perto E vida < 40% → tema "enraged" (mais rápido, mais alto)
@@ -3390,6 +3473,168 @@ function atualizarPausa() {
   }
 }
 
+/* ---------- ESTADO: BOSS INTRO ---------- */
+// Pausa o jogo ~1.8s, mostra zoom dramático no boss + nome + frase de provocação.
+function atualizarBossIntro() {
+  bossIntroTimer -= dtF;
+  // Mantém a cena por baixo (último frame do jogo) — só sobrepõe overlay.
+  // Camada escura pulsante
+  const pulso = Math.sin(tempo * 0.2) * 0.05;
+  ctx.fillStyle = `rgba(20,0,30,${0.55 + pulso})`;
+  ctx.fillRect(0, 0, W, H);
+  // Listras vermelhas verticais decorativas (efeito anime)
+  ctx.fillStyle = 'rgba(255,0,0,0.12)';
+  for (let i = 0; i < 8; i++) {
+    const lx = (i * 130 + Math.floor(tempo*2)) % W;
+    ctx.fillRect(lx, 0, 4, H);
+  }
+  // Caixa central
+  const t = 1 - bossIntroTimer / 110;            // 0 → 1
+  const escala = Math.min(1, t * 3);             // pop-in rápido
+  ctx.save();
+  ctx.translate(W/2, H/2);
+  ctx.scale(escala, escala);
+  // "BOSS!" header vermelho a piscar
+  ctx.textAlign = 'center';
+  ctx.fillStyle = (Math.floor(tempo/8)%2) ? '#f00' : '#fff';
+  ctx.font = 'bold 32px Courier New';
+  ctx.fillText('★ BOSS! ★', 0, -100);
+  // Nome do boss
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 56px Courier New';
+  ctx.fillText(bossIntroNome, 0, -40);
+  // Caixa de diálogo do boss
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillRect(-340, 10, 680, 80);
+  ctx.strokeStyle = '#f44'; ctx.lineWidth = 4;
+  ctx.strokeRect(-340, 10, 680, 80);
+  ctx.fillStyle = '#f88';
+  ctx.font = 'bold 16px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText(bossIntroNome + ':', -320, 36);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 22px Courier New';
+  ctx.textAlign = 'center';
+  // Texto a aparecer letra a letra (durante a intro)
+  const totalLetras = bossIntroFala.length;
+  const letrasVisiveis = Math.floor(t * totalLetras * 1.3);
+  ctx.fillText(bossIntroFala.substring(0, letrasVisiveis), 0, 70);
+  ctx.restore();
+
+  // Auto-avança quando timer expira (ou ENTER skip)
+  if (bossIntroTimer <= 0 || teclasJustNow['Enter']) {
+    estado = 'jogo';
+  }
+}
+
+/* ---------- ESTADO: TRANSIÇÃO ENTRE FASES (mapa da cidade) ---------- */
+let transicaoTimer = 0;
+let transicaoDe = 0;   // índice da fase de origem
+let transicaoPara = 0; // índice da fase destino
+function atualizarTransicaoFase() {
+  transicaoTimer += dtF;
+  // Fundo escuro com gradiente
+  const grd = ctx.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, '#0a0a30');
+  grd.addColorStop(1, '#100020');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  // Estrelas pseudo-aleatórias
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 60; i++) {
+    const sx = (i * 137) % W;
+    const sy = (i * 53) % H;
+    ctx.globalAlpha = 0.3 + (Math.sin(tempo*0.05 + i) + 1) * 0.2;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+  // Título
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 28px Courier New';
+  ctx.fillText('VIAJANDO PARA ' + FASES[transicaoPara].nome, W/2, 60);
+
+  // Posições dos 10 nodos (layout em curva pela cidade)
+  const NODOS = [];
+  for (let i = 0; i < FASES.length; i++) {
+    const ang = (i / (FASES.length - 1)) * Math.PI * 1.4 + 0.3;
+    NODOS.push({
+      x: 100 + (W - 200) * (i / (FASES.length - 1)),
+      y: 280 + Math.sin(ang * 2.5) * 80,
+      nome: FASES[i].nome,
+      n: FASES[i].numero,
+    });
+  }
+  // Desenha linhas de conexão (cinzentas, depois verdes para fases vencidas)
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 2;
+  for (let i = 0; i < NODOS.length - 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(NODOS[i].x, NODOS[i].y);
+    ctx.lineTo(NODOS[i+1].x, NODOS[i+1].y);
+    ctx.stroke();
+  }
+  // Linha verde até à fase actual
+  ctx.strokeStyle = '#4f4'; ctx.lineWidth = 4;
+  for (let i = 0; i < transicaoDe; i++) {
+    ctx.beginPath();
+    ctx.moveTo(NODOS[i].x, NODOS[i].y);
+    ctx.lineTo(NODOS[i+1].x, NODOS[i+1].y);
+    ctx.stroke();
+  }
+  // Linha animada a desenhar do nó actual ao próximo
+  const progresso = Math.min(1, transicaoTimer / 90);
+  const ix = NODOS[transicaoDe].x + (NODOS[transicaoPara].x - NODOS[transicaoDe].x) * progresso;
+  const iy = NODOS[transicaoDe].y + (NODOS[transicaoPara].y - NODOS[transicaoDe].y) * progresso;
+  ctx.strokeStyle = '#fc0'; ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(NODOS[transicaoDe].x, NODOS[transicaoDe].y);
+  ctx.lineTo(ix, iy);
+  ctx.stroke();
+  // Nodos
+  for (let i = 0; i < NODOS.length; i++) {
+    const n = NODOS[i];
+    const passou = i <= transicaoDe;
+    const futuro = i > transicaoPara;
+    const proximo = i === transicaoPara;
+    let cor = '#666';
+    if (passou) cor = '#4f4';
+    if (proximo) cor = (Math.floor(tempo/8)%2) ? '#fc0' : '#f80';
+    ctx.fillStyle = cor;
+    ctx.beginPath(); ctx.arc(n.x, n.y, proximo ? 14 : 10, 0, Math.PI*2); ctx.fill();
+    // Número da fase
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.n, n.x, n.y + 4);
+    // Nome (só fase actual e próxima)
+    if (proximo || passou) {
+      ctx.fillStyle = '#fff';
+      ctx.font = '11px Courier New';
+      ctx.fillText(n.nome, n.x, n.y - 18);
+    }
+  }
+  // Ícone do herói a viajar
+  ctx.save();
+  ctx.translate(ix, iy - 8);
+  ctx.fillStyle = '#2c8'; // verde do cabelo
+  ctx.fillRect(-6, -10, 12, 4);
+  ctx.fillStyle = '#3a6acc'; // tronco azul
+  ctx.fillRect(-5, -6, 10, 12);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-5, 6, 4, 4); ctx.fillRect(1, 6, 4, 4);
+  ctx.restore();
+
+  // Prompt
+  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#888';
+  ctx.font = '14px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(progresso >= 1 ? 'ENTER ▶ entrar na fase' : 'a viajar...', W/2, H - 50);
+
+  if (progresso >= 1 && teclasJustNow['Enter']) {
+    iniciarFase(transicaoPara);
+    estado = 'cutscene';
+  }
+}
+
 /* ---------- ESTADO: GAME OVER ---------- */
 function atualizarGameOver() {
   tocarMusica('gameover');
@@ -3537,12 +3782,13 @@ function atualizarVitoria() {
 
   if (teclasJustNow['Enter']) {
     if (haProxima) {
-      // Guarda progresso ANTES de avançar (continua a partir da próxima fase)
       guardarSave(faseAtual + 1);
-      iniciarFase(faseAtual + 1);
-      estado = 'cutscene';
+      // Em vez de saltar directo para a cutscene, mostra mapa de transição
+      transicaoDe = faseAtual;
+      transicaoPara = faseAtual + 1;
+      transicaoTimer = 0;
+      estado = 'transicao';
     } else {
-      // Final do jogo (sem finalDoJogo flag mas sem próxima): apaga save
       apagarSave();
       estado = 'menu';
     }
