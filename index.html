@@ -1877,10 +1877,12 @@ function atualizarJogo() {
   if (shake > 0) shake *= Math.pow(0.85, dtF);
 
   // 6. Verifica condições de fim
+  // Vitória: flag explícita OU não há mais nenhum chefe vivo (failsafe)
+  const algumChefeVivo = inimigos.some(i => i.chefe);
   if (heroi.vida <= 0) {
     estado = 'gameover';
     somMorte();
-  } else if (bossDerrotadoNaFase) {
+  } else if (bossDerrotadoNaFase || !algumChefeVivo) {
     estado = 'vitoria';
     vitoriaTimer = 0;
     somVitoria();
