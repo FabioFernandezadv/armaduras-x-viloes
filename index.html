@@ -466,7 +466,9 @@ const heroi = {
   x: 100, y: 0, w: 36, h: 56,
   vx: 0, vy: 0,
   noChao: false,
-  vida: 3, vidaMax: 3,
+  // Vida em UNIDADES DE MEIO-CORAÇÃO (6 = 3 corações inteiros).
+  // vidaMax pode evoluir até 10 (5 corações) ao derrotar certos bosses.
+  vida: 6, vidaMax: 6,
   invencivel: 0, // frames de invencibilidade após levar dano
   olhandoDireita: true,
   armadura: 'cavaleiro',
@@ -705,6 +707,7 @@ function guardarSave(faseProxima) {
       armaduras: heroi.armadurasDesbloqueadas,
       armaduraEquipada: heroi.armadura,
       nivelNG,
+      vidaMax: heroi.vidaMax,
       data: Date.now(),
     }));
   } catch(e) { console.warn('save falhou', e); }
@@ -724,6 +727,7 @@ function aplicarSave(save) {
   pontos = save.pontos;
   coins = save.coins || 0;
   nivelNG = save.nivelNG || 0;
+  heroi.vidaMax = save.vidaMax || 6;
 }
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
@@ -1764,6 +1768,7 @@ function atualizarMenu() {
     apagarSave();
     nivelNG = 0;
     coins = 0;
+    heroi.vidaMax = 6;
     heroi.armadurasDesbloqueadas = ['cavaleiro'];
     heroi.armadura = 'cavaleiro';
     historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
@@ -2563,8 +2568,11 @@ function atualizarJogo() {
     // Apanhar
     if (colide(heroi, pk)) {
       if (pk.tipo === 'coracao') {
-        if (heroi.vida < heroi.vidaMax) { heroi.vida++; som(880, 0.15, 'triangle'); }
-        else { pontos += 50; som(660, 0.1); } // já vida cheia → bónus pontos
+        if (heroi.vida < heroi.vidaMax) {
+          // Cura 1 coração inteiro (2 meios)
+          heroi.vida = Math.min(heroi.vidaMax, heroi.vida + 2);
+          som(880, 0.15, 'triangle');
+        } else { pontos += 50; som(660, 0.1); }
       } else if (pk.tipo === 'moeda') {
         pontos += 25; som(1200, 0.06, 'square', 0.1);
       }
@@ -2635,6 +2643,22 @@ function atualizarJogo() {
     // Bónus de moedas grande por completar a fase!
     const bonusFase = 100 + faseAtual * 50;
     coins += bonusFase;
+    // UPGRADE DE VIDA MÁXIMA — em milestones específicos:
+    //  Fase 3 (Comissário) → 4 corações
+    //  Fase 7 (Chef Mutante) → 5 corações
+    const num = FASES[faseAtual].numero;
+    if (num === 3 && heroi.vidaMax < 8) {
+      heroi.vidaMax = 8;
+      heroi.vida = heroi.vidaMax;
+      armorChangeTimer = 90;
+      armorChangeName = '★ +1 CORAÇÃO MÁXIMO! (4❤) ★';
+    }
+    if (num === 7 && heroi.vidaMax < 10) {
+      heroi.vidaMax = 10;
+      heroi.vida = heroi.vidaMax;
+      armorChangeTimer = 90;
+      armorChangeName = '★ +1 CORAÇÃO MÁXIMO! (5❤) ★';
+    }
   }
 
   // 7. Câmara
@@ -4446,9 +4470,13 @@ function desenharHUD() {
   ctx.fillStyle = '#2c8'; ctx.fillRect(hx, 12, 10, 4);  // cabelo verde
   ctx.fillStyle = '#3a6acc'; ctx.fillRect(hx + 1, 16, 8, 10); // tronco
 
-  // Corações
-  for (let i = 0; i < heroi.vidaMax; i++) {
-    desenharCoracao(20 + i * 36, 38, i < heroi.vida);
+  // Corações em meio-coração (vidaMax em meios; numHearts = vidaMax/2)
+  const numHearts = Math.floor(heroi.vidaMax / 2);
+  for (let i = 0; i < numHearts; i++) {
+    let estado = 0;
+    if (heroi.vida >= (i + 1) * 2) estado = 2;        // cheio
+    else if (heroi.vida >= (i + 1) * 2 - 1) estado = 1; // metade
+    desenharCoracaoEstado(20 + i * 30, 38, estado);
   }
   // Pontos
   ctx.fillStyle = '#fff';
@@ -4517,9 +4545,8 @@ function desenharDamageNumbers() {
   ctx.globalAlpha = 1;
 }
 
-function desenharCoracao(x, y, cheio) {
-  ctx.fillStyle = cheio ? '#f44' : '#444';
-  // Coração feito com 2 quadrados + 1 triângulo (formas geométricas)
+function desenharFormaCoracao(x, y, cor) {
+  ctx.fillStyle = cor;
   ctx.fillRect(x,    y,    10, 10);
   ctx.fillRect(x+12, y,    10, 10);
   ctx.beginPath();
@@ -4528,6 +4555,28 @@ function desenharCoracao(x, y, cheio) {
   ctx.lineTo(x+11, y + 24);
   ctx.closePath();
   ctx.fill();
+}
+// estado: 0 = vazio (cinzento), 1 = METADE, 2 = cheio (vermelho)
+function desenharCoracaoEstado(x, y, estado) {
+  if (estado === 2) {
+    desenharFormaCoracao(x, y, '#f44');
+  } else if (estado === 1) {
+    // Coração base cinzento
+    desenharFormaCoracao(x, y, '#444');
+    // Metade esquerda vermelha (clip)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - 1, y - 2, 12, 30);
+    ctx.clip();
+    desenharFormaCoracao(x, y, '#f44');
+    ctx.restore();
+  } else {
+    desenharFormaCoracao(x, y, '#444');
+  }
+}
+// Compatibilidade com código antigo
+function desenharCoracao(x, y, cheio) {
+  desenharCoracaoEstado(x, y, cheio ? 2 : 0);
 }
 
 /* ---------- ESTADO: PAUSA ---------- */
