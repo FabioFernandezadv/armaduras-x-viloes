@@ -401,10 +401,11 @@ const heroi = {
   olhandoDireita: true,
   armadura: 'cavaleiro',
   // Armaduras já desbloqueadas (todas, para o Luís experimentar).
-  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa','samurai','elementar'],
-  voando: false,             // só Angelical: activa-se com duplo-clique no salto
-  ultimoSaltoTime: -100,     // para detectar duplo-clique
-  angelicalCounter: 0,       // cicla os 3 ataques: pena → chama azul → feixe
+  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa','samurai','elementar','dragao_supremo'],
+  voando: false,             // Angelical e Dragão Supremo: activam com duplo-clique
+  ultimoSaltoTime: -100,
+  angelicalCounter: 0,       // cicla 3 ataques: pena → chama azul → feixe
+  dragaoCounter: 0,          // cicla 4 mega-ataques do Dragão Supremo
   trail: [],                 // posições passadas para efeito de rasto
   ataqueAtivo: 0, // frames restantes da animação de ataque
 };
@@ -470,6 +471,7 @@ const NOME_ARMADURA = {
   mago_terra: 'MAGO DE TERRA', mago_vento: 'MAGO DE VENTO',
   angelical: 'ANGELICAL', princesa: 'PRINCESA GUERREIRA',
   samurai: 'SAMURAI', elementar: 'ELEMENTAR ÁGUA & FOGO',
+  dragao_supremo: 'DRAGÃO SUPREMO',
 };
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
@@ -598,6 +600,47 @@ function tentarAtacar() {
       atingidos: new Set(),
     };
     tremerEcra(6);
+  } else if (heroi.armadura === 'dragao_supremo') {
+    // DRAGÃO SUPREMO: cicla 4 mega-ataques (todos os poderes + tornado).
+    const tipoDg = ['mega_chama', 'mega_gelo', 'tornado', 'onda_dragao'][heroi.dragaoCounter];
+    heroi.dragaoCounter = (heroi.dragaoCounter + 1) % 4;
+    if (tipoDg === 'mega_chama') {
+      // Lança-chamas em LEQUE — 3 bolas de fogo XL (vermelho/azul/verde)
+      som(550, 0.18, 'sawtooth', 0.18);
+      som(800, 0.15, 'square', 0.1);
+      for (let i = -1; i <= 1; i++) {
+        projeteis.push({ tipo:'fogo', x: cx, y: cy + i*12, vx: 8*dir, vy: i*0.6,
+          w: 30, h: 30, dano: 2, vida: 110 });
+      }
+      tremerEcra(4);
+    } else if (tipoDg === 'mega_gelo') {
+      // Tempestade de cristais — 5 cristais em leque
+      som(900, 0.1, 'sine');
+      som(1100, 0.08, 'sine', 0.1);
+      for (let i = -2; i <= 2; i++) {
+        projeteis.push({ tipo:'gelo', x: cx, y: cy + i*8, vx: 9*dir, vy: i*0.4,
+          w: 20, h: 24, dano: 1, vida: 110 });
+      }
+    } else if (tipoDg === 'tornado') {
+      // TORNADO — alto, atravessa, dano 3, suga inimigos para o centro
+      som(150, 0.4, 'sawtooth', 0.2);
+      som(280, 0.4, 'square', 0.12);
+      som(420, 0.4, 'sawtooth', 0.08);
+      projeteis.push({ tipo:'tornado', x: cx - 25, y: heroi.y - 30, vx: 5*dir, vy: 0,
+        w: 70, h: heroi.h + 50, dano: 3, vida: 160, atravessa: true, rot: 0 });
+      tremerEcra(8);
+    } else {
+      // ONDA DRAGÃO — AOE 360° tricolor, raio maior, dano 3
+      som(600, 0.15, 'sawtooth', 0.15);
+      som(900, 0.15, 'square', 0.12);
+      som(1300, 0.18, 'sine', 0.1);
+      ondaPrincesa = {
+        cx: heroi.x + heroi.w/2, cy: heroi.y + heroi.h/2,
+        raio: 18, raioMax: 220, vida: 32, dano: 3,
+        atingidos: new Set(), tricolor: true,
+      };
+      tremerEcra(12);
+    }
   } else if (heroi.armadura === 'angelical') {
     // 3 ataques alternados: pena → chama azul → feixe divino
     const tipoAng = ['pena','chama_azul','feixe'][heroi.angelicalCounter];
@@ -1139,8 +1182,8 @@ function atualizarJogo() {
   const tentouSaltar = teclasJustNow['ArrowUp'] || teclasJustNow['KeyW'] || teclasJustNow['Space'];
   if (tentouSaltar) {
     const passou = tempo - heroi.ultimoSaltoTime;
-    // ANGELICAL: duplo-clique no salto (intervalo < 18 frames) → activa/desactiva voo
-    if (heroi.armadura === 'angelical' && passou < 18) {
+    // ANGELICAL ou DRAGÃO SUPREMO: duplo-clique no salto activa voo
+    if ((heroi.armadura === 'angelical' || heroi.armadura === 'dragao_supremo') && passou < 18) {
       heroi.voando = !heroi.voando;
       heroi.vy = heroi.voando ? -3 : 0;
       som(heroi.voando ? 1200 : 600, 0.18, 'triangle', 0.12);
@@ -1163,8 +1206,8 @@ function atualizarJogo() {
     if (lift !== 0) heroi.vy = lift;
     else heroi.vy *= 0.92; // amortece quando não há thrust
   }
-  // Se troquei de armadura para fora de Angelical, sai do voo
-  if (heroi.armadura !== 'angelical' && heroi.voando) heroi.voando = false;
+  // Se troquei de armadura para fora de Angelical/Dragão Supremo, sai do voo
+  if (heroi.armadura !== 'angelical' && heroi.armadura !== 'dragao_supremo' && heroi.voando) heroi.voando = false;
 
   // Ataque
   if (teclasJustNow['KeyJ'] || teclasJustNow['KeyZ']) tentarAtacar();
@@ -1286,6 +1329,16 @@ function atualizarJogo() {
     p.x += p.vx * dtF; p.y += p.vy * dtF; p.vida -= dtF;
     if (p.tipo === 'shuriken') p.rot = (p.rot || 0) + 0.4 * dtF;
     if (p.tipo === 'pena') p.rot = (p.rot || 0) + 0.15 * dtF;
+    if (p.tipo === 'tornado') {
+      p.rot = (p.rot || 0) + 0.5 * dtF;
+      // Suga inimigos próximos para o centro do tornado
+      for (const ini of inimigos) {
+        const dxx = (p.x + p.w/2) - (ini.x + ini.w/2);
+        if (Math.abs(dxx) < 120 && Math.abs(dxx) > 8) {
+          ini.x += Math.sign(dxx) * 1.5 * dtF;
+        }
+      }
+    }
     // Gravidade para projécteis com arco (rocha do Mago de Terra)
     if (p.comGravidade) p.vy += 0.4 * dtF;
     // Colisão com inimigos
@@ -2098,7 +2151,8 @@ function desenharHeroi() {
   else if (h.armadura === 'angelical')   { corPernas = '#ddc';    corTronco = '#fff';    corDetalhe = '#fc0'; }
   else if (h.armadura === 'princesa')    { corPernas = '#fc0';    corTronco = '#fc0';    corDetalhe = '#fff'; }
   else if (h.armadura === 'samurai')     { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fff'; }
-  else /* elementar */                   { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fc0'; }
+  else if (h.armadura === 'elementar')   { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fc0'; }
+  else /* dragao_supremo */              { corPernas = '#063';    corTronco = '#0a4';    corDetalhe = '#fc0'; }
 
   // Pernas — animação de andar quando se move no chão
   const aMover = (h.vx !== 0) && h.noChao;
@@ -2212,6 +2266,58 @@ function desenharHeroi() {
     ctx.fillRect(wx, y + 20 + off, 12, 2);
     ctx.fillRect(wx, y + 28 - off, 10, 2);
     ctx.fillRect(wx, y + 36 + off, 14, 2);
+  } else if (h.armadura === 'dragao_supremo') {
+    // DRAGÃO SUPREMO: tricolor (vermelho/azul/verde) + asas verdes + elmo de dragão
+    // Sobrepõe o tronco com 3 listras tricolor
+    ctx.fillStyle = '#c00'; ctx.fillRect(x + 4,  y + 18, 9, 24);   // vermelho
+    ctx.fillStyle = '#48f'; ctx.fillRect(x + 13, y + 18, 9, 24);   // azul
+    ctx.fillStyle = '#0c4'; ctx.fillRect(x + 22, y + 18, 10, 24);  // verde
+    // Cinto dourado
+    ctx.fillStyle = '#fc0'; ctx.fillRect(x + 4, y + 30, 28, 4);
+    // Escamas no peito (pontos brancos)
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 8, y + 22, 2, 2); ctx.fillRect(x + 16, y + 22, 2, 2);
+    ctx.fillRect(x + 24, y + 22, 2, 2);
+    // ASAS verdes a bater (atrás)
+    const bater = Math.sin(tempo * 0.3) * 5;
+    ctx.fillStyle = '#0a4';
+    // Asa esquerda
+    ctx.fillRect(x - 22, y + 12 + bater, 22, 7);
+    ctx.fillRect(x - 28, y + 19 + bater, 28, 7);
+    ctx.fillRect(x - 22, y + 26 + bater, 22, 7);
+    // Asa direita
+    ctx.fillRect(x + h.w, y + 12 - bater, 22, 7);
+    ctx.fillRect(x + h.w, y + 19 - bater, 28, 7);
+    ctx.fillRect(x + h.w, y + 26 - bater, 22, 7);
+    // Veias vermelhas e azuis nas asas (detalhe tricolor)
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(x - 26, y + 22 + bater, 22, 2);
+    ctx.fillRect(x + h.w + 4, y + 22 - bater, 22, 2);
+    ctx.fillStyle = '#48f';
+    ctx.fillRect(x - 22, y + 16 + bater, 18, 2);
+    ctx.fillRect(x + h.w + 4, y + 16 - bater, 18, 2);
+    // ELMO DE DRAGÃO (cobre o cabelo verde do Midoriya)
+    ctx.fillStyle = '#063';
+    ctx.fillRect(x + 4, y - 8, 28, 14);
+    // Olhos amarelos brilhantes (pulsantes)
+    const olhoBrilho = (Math.sin(tempo*0.2)+1)/2;
+    ctx.fillStyle = `rgb(255,${200+Math.floor(55*olhoBrilho)},0)`;
+    ctx.fillRect(x + 8, y - 4, 4, 4);
+    ctx.fillRect(x + 24, y - 4, 4, 4);
+    // 2 chifres dourados
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + 6, y - 16, 4, 10);
+    ctx.fillRect(x + 26, y - 16, 4, 10);
+    ctx.fillRect(x + 4, y - 12, 4, 4);
+    ctx.fillRect(x + 28, y - 12, 4, 4);
+    // Crista vermelha de dragão no topo
+    ctx.fillStyle = '#c00';
+    ctx.fillRect(x + 12, y - 14, 8, 6);
+    ctx.fillRect(x + 14, y - 18, 4, 4);
+    // Dentes inferiores
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 10, y + 4, 2, 4);
+    ctx.fillRect(x + 24, y + 4, 2, 4);
   } else if (h.armadura === 'samurai') {
     // SAMURAI: faixa branca + ELMO KABUTO com chifres dourados em meia-lua
     ctx.fillStyle = '#fff';
@@ -2542,7 +2648,7 @@ function desenharAFOBoss(ini) {
 const GLOW_PROJ = {
   shuriken:'#fff', laser:'#0ff', fogo:'#f80', gelo:'#cef',
   terra:'#963', vento:'#9f9', pena:'#fc0', chama_azul:'#08f', feixe:'#ffe',
-  fogo_dual:'#f44', agua_dual:'#48f'
+  fogo_dual:'#f44', agua_dual:'#48f', tornado:'#cce'
 };
 function desenharProjectil(p) {
   ctx.shadowColor = GLOW_PROJ[p.tipo] || '#fff';
@@ -2652,6 +2758,34 @@ function desenharProjectilInterno(p) {
     ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 4, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.fillRect(p.x + p.w - 8, p.y + p.h/2 - 1, 4, 2);
+  } else if (p.tipo === 'tornado') {
+    // TORNADO: vortex em camadas com elementos rotativos
+    ctx.save();
+    ctx.translate(p.x + p.w/2, p.y + p.h/2);
+    // Cone do tornado (3 níveis, alarga em baixo)
+    ctx.fillStyle = 'rgba(180,180,220,0.55)';
+    ctx.fillRect(-p.w/3, -p.h/2, p.w*0.66, p.h * 0.3);
+    ctx.fillStyle = 'rgba(200,200,235,0.65)';
+    ctx.fillRect(-p.w/2.5, -p.h/2 + p.h*0.3, p.w*0.8, p.h * 0.3);
+    ctx.fillStyle = 'rgba(220,220,250,0.75)';
+    ctx.fillRect(-p.w/2, -p.h/2 + p.h*0.6, p.w, p.h * 0.4);
+    // Detalhes brancos rotativos (espirais)
+    ctx.rotate(p.rot || 0);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 6; i++) {
+      const ang = i * Math.PI/3;
+      const r = (i % 2 === 0) ? p.w/3 : p.w/4;
+      ctx.fillRect(Math.cos(ang)*r - 3, Math.sin(ang)*r*0.6 - 3, 6, 6);
+    }
+    // Toques tricolor (vermelho/azul/verde) a misturar
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(-p.w/3, -p.h/3, 4, 4);
+    ctx.fillStyle = '#48f';
+    ctx.fillRect(p.w/4, -p.h/4, 4, 4);
+    ctx.fillStyle = '#0c4';
+    ctx.fillRect(0, p.h/4, 4, 4);
+    ctx.restore();
   } else if (p.tipo === 'feixe') {
     // Feixe divino: dourado com núcleo branco e halo
     ctx.fillStyle = 'rgba(255,255,200,0.4)';
@@ -2668,23 +2802,31 @@ function desenharOndaPrincesa() {
   const o = ondaPrincesa;
   const alpha = Math.min(1, o.vida / 26);
   ctx.save();
-  // Anel principal dourado
   ctx.globalAlpha = alpha * 0.9;
-  ctx.strokeStyle = '#fc0';
-  ctx.lineWidth = 8;
-  ctx.beginPath();
-  ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2);
-  ctx.stroke();
-  // Anel interior branco brilhante
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(o.cx, o.cy, o.raio * 0.85, 0, Math.PI*2);
-  ctx.stroke();
-  // Faíscas rosas a sair
+  if (o.tricolor) {
+    // ONDA DRAGÃO: 3 anéis (vermelho + azul + verde) sobrepostos
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#f44';
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio + 4, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#48f';
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#0c4';
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio - 4, 0, Math.PI*2); ctx.stroke();
+    // Núcleo branco
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio * 0.8, 0, Math.PI*2); ctx.stroke();
+  } else {
+    // Anel principal dourado (Princesa)
+    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(o.cx, o.cy, o.raio * 0.85, 0, Math.PI*2); ctx.stroke();
+  }
+  // Faíscas a sair (cor consoante o tipo)
   ctx.globalAlpha = alpha * 0.6;
-  ctx.fillStyle = '#f8c';
+  const corFaisca = o.tricolor ? ['#f44','#48f','#0c4'] : ['#f8c'];
   for (let a = 0; a < Math.PI*2; a += Math.PI/8) {
+    ctx.fillStyle = corFaisca[Math.floor(a*3) % corFaisca.length];
     const px = o.cx + Math.cos(a) * o.raio;
     const py = o.cy + Math.sin(a) * o.raio;
     ctx.fillRect(px - 2, py - 2, 4, 4);
