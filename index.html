@@ -483,6 +483,57 @@ function criarShigarakiBoss(x) {
     vx: -0.7, vida: 18, vidaMax: 18, dano: 1, pontos: 1000,
     atingido: 0, chefe: true, cor: '#222', nome: 'SHIGARAKI' };
 }
+// SUB-CHEFE: variante mais pequena do dragão para sub-fases 1-4 de cada fase.
+// Tem cor temática da fase mas NÃO é `chefe: true` (não dispara vitória da fase).
+function criarSubBoss(x, faseIdx, subIdx) {
+  const corPorFase = ['#7a2a8a','#c40','#048','#286','#444',
+                      '#608','#822','#c00','#063','#1a0030'];
+  const nomePorFase = ['CRIA DO DRAGÃO','BRASA','AGENTE','ENFERMEIRO',
+                       'CAPANGA','BUG','MARMITÃO','PIERROT','ALUNO ESPECTRAL','GUARDA AFO'];
+  const vida = 4 + subIdx * 2; // 4, 6, 8, 10 conforme sub-fase 1-4
+  return {
+    tipo: 'subboss',
+    x, y: CHAO_Y - 50,
+    w: 60, h: 50,
+    vx: -1.0,
+    vida, vidaMax: vida,
+    dano: 1, pontos: 200,
+    atingido: 0,
+    chefe: false,    // CRUCIAL — não dispara fim de fase
+    cor: corPorFase[faseIdx] || '#a44',
+    nome: nomePorFase[faseIdx] || 'SUB-CHEFE',
+  };
+}
+
+// Gera os inimigos para uma sub-fase específica.
+// Sub-fases 0..3 → tropas + sub-chefe. Sub-fase 4 → spawnInimigos original (com main boss).
+function spawnSubFase(faseIdx, subIdx) {
+  const f = FASES[faseIdx];
+  if (subIdx >= 4) {
+    return f.spawnInimigos(); // sub-fase final = boss original da fase
+  }
+  // Sub-fases 0-3: 3 monstros + (talvez voador se fase >= 2) + sub-chefe
+  const corMonstro = ['#6a2a2a','#a44','#246','#8a4','#c84',
+                      '#a4f','#a55','#f40','#286','#a0f'][faseIdx] || '#6a2a2a';
+  const corVoador = ['#fc0','#f80','#48f','#fff','#f4a',
+                     '#0ff','#fc0','#fc0','#fff','#f0f'][faseIdx] || '#fc0';
+  const lista = [
+    criarMonstro(450, 2 + subIdx, corMonstro),
+    criarMonstro(700, 2 + subIdx, corMonstro),
+    criarMonstro(1000, 3 + subIdx, corMonstro),
+  ];
+  if (faseIdx >= 1) {
+    lista.push(criarVoador(850, corVoador));
+  }
+  if (subIdx >= 2) {
+    // sub-fases 3 e 4 (1.3, 1.4) ganham mais um inimigo
+    lista.push(criarMonstro(1200, 3 + subIdx, corMonstro));
+  }
+  // Sub-chefe ao fim da sub-fase
+  lista.push(criarSubBoss(1500, faseIdx, subIdx));
+  return lista;
+}
+
 // CHEFE FINAL DO JOGO (Fase 10): All For One — gigante, lento, dano 2.
 function criarAllForOne(x) {
   return { tipo:'afo', x, y: CHAO_Y - 160, w: 90, h: 160,
@@ -513,6 +564,9 @@ let damageNumbers = [];          // números de dano flutuantes
 let combo = 0;                   // contador de kills consecutivos
 let comboTimer = 0;              // frames antes do combo resetar
 let heroDamageFlash = 0;         // tint vermelho ao levar dano
+let subFase = 0;                 // 0..4 dentro da fase actual (1.1, 1.2, ..., 1.5)
+let subFaseTransicaoTimer = 0;   // frames de overlay "FASE X.Y"
+let selecaoIndex = 0;            // selecção no ecrã de armaduras
 function spawnDamageNumber(x, y, dano, cor) {
   if (!cor) cor = dano >= 3 ? '#f44' : dano >= 2 ? '#fc0' : '#fff';
   damageNumbers.push({ x: x + (Math.random()-0.5)*10, y: y - 8,
@@ -1418,8 +1472,9 @@ function faseAcual() { return FASES[faseAtual]; } // helper
 /* ---------- INICIALIZAÇÃO DE FASE ---------- */
 function iniciarFase(idx) {
   faseAtual = idx;
+  subFase = 0; // começa sempre em sub-fase 1.1
   const f = FASES[idx];
-  inimigos = escalarInimigos(f.spawnInimigos(), f.numero);
+  inimigos = escalarInimigos(spawnSubFase(idx, 0), f.numero);
   heroi.x = 100;
   heroi.y = CHAO_Y - heroi.h;
   heroi.vx = 0; heroi.vy = 0;
@@ -1440,6 +1495,7 @@ function iniciarFase(idx) {
   combo = 0;
   comboTimer = 0;
   heroDamageFlash = 0;
+  subFaseTransicaoTimer = 0;
   slowmoTimer = 0;
   flashTimer = 0;
   ondaPrincesa = null;
@@ -1478,6 +1534,7 @@ function loop(now) {
   if (flashTimer > 0) flashTimer -= dtF;
   if (armorChangeTimer > 0) armorChangeTimer -= dtF;
   if (heroDamageFlash > 0) heroDamageFlash -= dtF;
+  if (subFaseTransicaoTimer > 0) subFaseTransicaoTimer -= dtF;
   if (comboTimer > 0) { comboTimer -= dtF; if (comboTimer <= 0) combo = 0; }
   for (const d of damageNumbers) {
     d.y += d.vy * dtF;
@@ -1490,6 +1547,7 @@ function loop(now) {
   if (estado === 'menu')      atualizarMenu();
   else if (estado === 'historia') atualizarHistoria();
   else if (estado === 'cutscene') atualizarCutscene();
+  else if (estado === 'selecao_armadura') atualizarSelecaoArmadura();
   else if (estado === 'jogo')     atualizarJogo();
   else if (estado === 'pausa')    atualizarPausa();
   else if (estado === 'boss_intro') atualizarBossIntro();
@@ -1752,10 +1810,95 @@ function atualizarCutscene() {
     if (cutsceneIndice < fala.length) {
       cutsceneIndice = fala.length; // revela tudo
     } else {
-      estado = 'jogo';
-      // Carrega os inimigos da fase mas mantém a posição/estado já preparado.
-      inimigos = escalarInimigos(FASES[faseAtual].spawnInimigos(), FASES[faseAtual].numero);
+      // Vai para o ecrã de selecção de armadura (entre fases)
+      estado = 'selecao_armadura';
+      selecaoIndex = heroi.armadurasDesbloqueadas.indexOf(heroi.armadura);
+      if (selecaoIndex < 0) selecaoIndex = 0;
     }
+  }
+}
+
+/* ---------- ESTADO: SELECÇÃO DE ARMADURA ---------- */
+function atualizarSelecaoArmadura() {
+  // Fundo escuro
+  ctx.fillStyle = 'rgba(10,10,30,0.95)'; ctx.fillRect(0, 0, W, H);
+  // Estrelas decorativas
+  for (let i = 0; i < 40; i++) {
+    const sx = (i * 137) % W, sy = (i * 53) % H;
+    ctx.globalAlpha = 0.2 + (Math.sin(tempo*0.05 + i) + 1) * 0.15;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 30px Courier New';
+  ctx.fillText('ESCOLHE A ARMADURA', W/2, 50);
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px Courier New';
+  ctx.fillText('Setas para navegar  ·  ENTER para começar a fase ' + FASES[faseAtual].numero, W/2, 78);
+
+  const arms = heroi.armadurasDesbloqueadas;
+  const cols = 4;
+  const cellW = 200, cellH = 70;
+  const rows = Math.ceil(arms.length / cols);
+  const startX = W/2 - cols * cellW / 2;
+  const startY = 105;
+
+  for (let i = 0; i < arms.length; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = startX + col * cellW;
+    const cy = startY + row * cellH;
+    const sel = (i === selecaoIndex);
+    // Caixa
+    ctx.fillStyle = sel ? '#fc0' : 'rgba(255,255,255,0.08)';
+    ctx.fillRect(cx + 6, cy + 6, cellW - 12, cellH - 12);
+    if (sel) {
+      const pulso = (Math.sin(tempo*0.2)+1)/2;
+      ctx.strokeStyle = `rgba(255,255,255,${0.5 + pulso*0.5})`;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(cx + 6, cy + 6, cellW - 12, cellH - 12);
+    }
+    // Nome da armadura
+    ctx.fillStyle = sel ? '#000' : '#fff';
+    ctx.font = sel ? 'bold 14px Courier New' : '12px Courier New';
+    ctx.fillText(NOME_ARMADURA[arms[i]] || arms[i].toUpperCase(), cx + cellW/2, cy + cellH/2 + 5);
+  }
+
+  // Prompt em baixo
+  ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fc0' : '#888';
+  ctx.font = 'bold 18px Courier New';
+  ctx.fillText('▶ ENTER para entrar na fase ◀', W/2, H - 30);
+
+  // Navegação
+  if (teclasJustNow['ArrowLeft']  || teclasJustNow['KeyA']) {
+    if (selecaoIndex > 0) selecaoIndex--;
+    else selecaoIndex = arms.length - 1;
+    som(440, 0.04);
+  }
+  if (teclasJustNow['ArrowRight'] || teclasJustNow['KeyD']) {
+    if (selecaoIndex < arms.length - 1) selecaoIndex++;
+    else selecaoIndex = 0;
+    som(440, 0.04);
+  }
+  if (teclasJustNow['ArrowUp']    || teclasJustNow['KeyW']) {
+    if (selecaoIndex >= cols) selecaoIndex -= cols;
+    som(440, 0.04);
+  }
+  if (teclasJustNow['ArrowDown']  || teclasJustNow['KeyS']) {
+    if (selecaoIndex + cols < arms.length) selecaoIndex += cols;
+    som(440, 0.04);
+  }
+
+  if (teclasJustNow['Enter']) {
+    heroi.armadura = arms[selecaoIndex];
+    armorChangeTimer = 36;
+    armorChangeName = NOME_ARMADURA[heroi.armadura];
+    estado = 'jogo';
+    som(880, 0.15);
+    som(1100, 0.18, 'sine', 0.1);
   }
 }
 
@@ -1866,21 +2009,12 @@ function atualizarJogo() {
   // Ataque
   if (teclasJustNow['KeyJ'] || teclasJustNow['KeyZ']) tentarAtacar();
 
-  // Trocar armadura: K ou X cicla entre as desbloqueadas.
+  // K/X durante o jogo: já não troca armadura (só na selecção entre fases).
+  // Pequeno bleep negativo + nota a explicar.
   if (teclasJustNow['KeyK'] || teclasJustNow['KeyX']) {
-    if (heroi.armadurasDesbloqueadas.length > 1) {
-      const i = heroi.armadurasDesbloqueadas.indexOf(heroi.armadura);
-      heroi.armadura = heroi.armadurasDesbloqueadas[(i+1) % heroi.armadurasDesbloqueadas.length];
-      // Dispara cutscene de troca (não bloqueia o jogo, é overlay rápido)
-      armorChangeTimer = 36;
-      armorChangeName = NOME_ARMADURA[heroi.armadura] || heroi.armadura.toUpperCase();
-      lancarParticulas(heroi.x + heroi.w/2, heroi.y + heroi.h/2, '#fc0', 14, 5);
-      som(660, 0.1, 'square');
-      som(880, 0.12, 'sine', 0.1);
-      som(1100, 0.15, 'triangle', 0.08);
-    } else {
-      som(150, 0.05);
-    }
+    som(150, 0.05);
+    armorChangeTimer = 30;
+    armorChangeName = '⛔ NÃO PODES TROCAR DURANTE A FASE';
   }
 
   // 2. Física do herói (escalada por dtF para ser independente de fps)
@@ -2219,13 +2353,19 @@ function atualizarJogo() {
   particulas = particulas.filter(pt => pt.vida > 0);
   if (shake > 0) shake *= Math.pow(0.85, dtF);
 
-  // 6. Verifica condições de fim
-  // Vitória: flag explícita OU não há mais nenhum chefe vivo (failsafe)
-  const algumChefeVivo = inimigos.some(i => i.chefe);
+  // 6. Verifica condições de fim (com sistema de sub-fases)
   if (heroi.vida <= 0) {
     estado = 'gameover';
     somMorte();
-  } else if (bossDerrotadoNaFase || !algumChefeVivo) {
+  } else if (subFase < 4 && inimigos.length === 0) {
+    // Sub-fase concluída → avança para a seguinte (1.1 → 1.2 → ... → 1.5)
+    subFase++;
+    inimigos = escalarInimigos(spawnSubFase(faseAtual, subFase), FASES[faseAtual].numero);
+    bossIntroFeito = false; // reset para que o boss da sub-fase 5 dispare intro
+    subFaseTransicaoTimer = 90; // overlay "FASE X.Y"
+    som(660, 0.1, 'sine'); som(880, 0.12, 'square', 0.1);
+  } else if (subFase >= 4 && (bossDerrotadoNaFase || !inimigos.some(i => i.chefe))) {
+    // Sub-fase final + boss derrotado → vitória da fase inteira
     estado = 'vitoria';
     vitoriaTimer = 0;
     somVitoria();
@@ -2284,6 +2424,26 @@ function atualizarJogo() {
     grd.addColorStop(0, 'rgba(255,0,0,0)');
     grd.addColorStop(1, `rgba(255,0,0,${0.3 + pulso*0.2})`);
     ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+  }
+  // Overlay de transição de sub-fase (1.1 → 1.2 etc)
+  if (subFaseTransicaoTimer > 0) {
+    const tt = subFaseTransicaoTimer / 90;
+    ctx.fillStyle = `rgba(255,200,40,${tt * 0.25})`;
+    ctx.fillRect(0, 0, W, H);
+    const escala = 1 + (1 - tt) * 0.3;
+    ctx.save();
+    ctx.translate(W/2, H/2);
+    ctx.scale(escala, escala);
+    ctx.globalAlpha = Math.min(1, tt * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(-200, -28, 400, 56);
+    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 3;
+    ctx.strokeRect(-200, -28, 400, 56);
+    ctx.fillStyle = '#fc0';
+    ctx.font = 'bold 30px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ FASE ' + FASES[faseAtual].numero + '.' + (subFase + 1) + ' ★', 0, 10);
+    ctx.restore();
   }
   // Cutscene de troca de armadura: brilho dourado + nome grande
   if (armorChangeTimer > 0) {
@@ -3816,6 +3976,10 @@ function desenharHUD() {
   ctx.font = '14px Courier New';
   ctx.fillStyle = '#aaf';
   ctx.fillText('ARMADURA: ' + (NOME_ARMADURA[heroi.armadura] || heroi.armadura.toUpperCase()), 20, 82);
+  // Indicador de SUB-FASE (ex: "FASE 1.3")
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 14px Courier New';
+  ctx.fillText('FASE ' + FASES[faseAtual].numero + '.' + (subFase + 1), 20, 100);
 }
 
 function desenharDamageNumbers() {
