@@ -401,7 +401,7 @@ const heroi = {
   olhandoDireita: true,
   armadura: 'cavaleiro',
   // Armaduras já desbloqueadas (todas, para o Luís experimentar).
-  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa'],
+  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento','angelical','princesa','samurai','elementar'],
   voando: false,             // só Angelical: activa-se com duplo-clique no salto
   ultimoSaltoTime: -100,     // para detectar duplo-clique
   angelicalCounter: 0,       // cicla os 3 ataques: pena → chama azul → feixe
@@ -460,6 +460,17 @@ let bossDerrotadoNaFase = false; // flag fiável: foi marcada quando o boss morr
 let slowmoTimer = 0;             // frames de slow-motion (hit-stop dramático)
 let flashTimer = 0;              // frames de flash branco no ecrã
 let ondaPrincesa = null;         // pulso de energia 360° da Princesa Guerreira
+let armorChangeTimer = 0;        // frames: cutscene de troca de armadura
+let armorChangeName = '';        // nome da armadura para mostrar
+let vitoriaTimer = 0;            // controla fase cinemática vs ecrã de stats
+// Mapa de nomes legíveis das armaduras (HUD + cutscenes)
+const NOME_ARMADURA = {
+  cavaleiro: 'CAVALEIRO', ninja: 'NINJA', robo: 'ROBÔ',
+  mago_fogo: 'MAGO DE FOGO', mago_gelo: 'MAGO DE GELO',
+  mago_terra: 'MAGO DE TERRA', mago_vento: 'MAGO DE VENTO',
+  angelical: 'ANGELICAL', princesa: 'PRINCESA GUERREIRA',
+  samurai: 'SAMURAI', elementar: 'ELEMENTAR ÁGUA & FOGO',
+};
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
 
@@ -558,6 +569,22 @@ function tentarAtacar() {
     som(1100, 0.06, 'triangle');
     projeteis.push({ tipo:'vento', x: cx, y: cy, vx: 11*dir, vy: 0,
       w: 38, h: 12, dano: 1, vida: 90, atravessa: true });
+  } else if (heroi.armadura === 'samurai') {
+    // SAMURAI: corte duplo veloz com 2 catanas, alcance ligeiramente maior, dano 2.
+    som(440, 0.05, 'sawtooth');
+    som(660, 0.08, 'square', 0.1);
+    som(880, 0.06, 'triangle', 0.08);
+    const alcance = 60;
+    const hx = heroi.olhandoDireita ? heroi.x + heroi.w : heroi.x - alcance;
+    hitboxAtaque = { x: hx, y: heroi.y + 5, w: alcance, h: heroi.h - 10, vida: 10, dano: 2 };
+  } else if (heroi.armadura === 'elementar') {
+    // ELEMENTAR (Água + Fogo): 2 projécteis simultâneos, um vermelho um azul.
+    som(550, 0.1, 'sawtooth', 0.12);
+    som(800, 0.1, 'sine', 0.1);
+    projeteis.push({ tipo:'fogo_dual', x: cx, y: cy - 10, vx: 8*dir, vy: 0,
+      w: 22, h: 18, dano: 1, vida: 100 });
+    projeteis.push({ tipo:'agua_dual', x: cx, y: cy + 10, vx: 8*dir, vy: 0,
+      w: 22, h: 18, dano: 1, vida: 100 });
   } else if (heroi.armadura === 'princesa') {
     // PRINCESA GUERREIRA: pulso de energia 360° à volta dela (AOE).
     // Atinge TODOS os inimigos no raio. Dano 2.
@@ -847,6 +874,7 @@ function loop(now) {
     dtF *= 0.22;              // resto do mundo abranda
   }
   if (flashTimer > 0) flashTimer -= dtF;
+  if (armorChangeTimer > 0) armorChangeTimer -= dtF;
   tempo += dtF;
   // Actualiza o estado actual e desenha
   if (estado === 'menu')      atualizarMenu();
@@ -1146,7 +1174,13 @@ function atualizarJogo() {
     if (heroi.armadurasDesbloqueadas.length > 1) {
       const i = heroi.armadurasDesbloqueadas.indexOf(heroi.armadura);
       heroi.armadura = heroi.armadurasDesbloqueadas[(i+1) % heroi.armadurasDesbloqueadas.length];
-      som(660, 0.1);
+      // Dispara cutscene de troca (não bloqueia o jogo, é overlay rápido)
+      armorChangeTimer = 36;
+      armorChangeName = NOME_ARMADURA[heroi.armadura] || heroi.armadura.toUpperCase();
+      lancarParticulas(heroi.x + heroi.w/2, heroi.y + heroi.h/2, '#fc0', 14, 5);
+      som(660, 0.1, 'square');
+      som(880, 0.12, 'sine', 0.1);
+      som(1100, 0.15, 'triangle', 0.08);
     } else {
       som(150, 0.05);
     }
@@ -1399,15 +1433,16 @@ function atualizarJogo() {
     estado = 'gameover';
     somMorte();
   } else if (bossDerrotadoNaFase) {
-    // Vitória = bandeira marcada quando o boss morre.
-    // 100% fiável, independente do que aconteceu à lista de inimigos.
     estado = 'vitoria';
+    vitoriaTimer = 0;
     somVitoria();
     inimigos = [];
     projeteisInimigo = [];
     const recompensa = FASES[faseAtual].recompensa;
     if (recompensa && !heroi.armadurasDesbloqueadas.includes(recompensa)) {
       heroi.armadurasDesbloqueadas.push(recompensa);
+      // Equipa automaticamente a nova armadura para o jogador a ver
+      heroi.armadura = recompensa;
     }
   }
 
@@ -1441,6 +1476,28 @@ function atualizarJogo() {
   if (flashTimer > 0) {
     ctx.fillStyle = `rgba(255,255,255,${Math.min(1, flashTimer/8) * 0.7})`;
     ctx.fillRect(0, 0, W, H);
+  }
+  // Cutscene de troca de armadura: brilho dourado + nome grande
+  if (armorChangeTimer > 0) {
+    const t = armorChangeTimer / 36;          // 1 → 0
+    // Halo dourado a desvanecer
+    ctx.fillStyle = `rgba(255,200,40,${t * 0.35})`;
+    ctx.fillRect(0, 0, W, H);
+    // Caixa central com nome
+    const escala = 1 + (1 - t) * 0.2;          // pop in
+    ctx.save();
+    ctx.translate(W/2, H/2 - 60);
+    ctx.scale(escala, escala);
+    ctx.globalAlpha = Math.min(1, t * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(-220, -30, 440, 60);
+    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 4;
+    ctx.strokeRect(-220, -30, 440, 60);
+    ctx.fillStyle = '#fc0';
+    ctx.font = 'bold 26px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('★ ' + armorChangeName + ' ★', 0, 8);
+    ctx.restore();
   }
 }
 
@@ -2039,7 +2096,9 @@ function desenharHeroi() {
   else if (h.armadura === 'mago_terra')  { corPernas = '#430';    corTronco = '#741';    corDetalhe = '#9c0'; }
   else if (h.armadura === 'mago_vento')  { corPernas = '#272';    corTronco = '#4b6';    corDetalhe = '#fff'; }
   else if (h.armadura === 'angelical')   { corPernas = '#ddc';    corTronco = '#fff';    corDetalhe = '#fc0'; }
-  else /* princesa */                    { corPernas = '#fc0';    corTronco = '#fc0';    corDetalhe = '#fff'; }
+  else if (h.armadura === 'princesa')    { corPernas = '#fc0';    corTronco = '#fc0';    corDetalhe = '#fff'; }
+  else if (h.armadura === 'samurai')     { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fff'; }
+  else /* elementar */                   { corPernas = '#400';    corTronco = '#a00';    corDetalhe = '#fc0'; }
 
   // Pernas — animação de andar quando se move no chão
   const aMover = (h.vx !== 0) && h.noChao;
@@ -2153,6 +2212,58 @@ function desenharHeroi() {
     ctx.fillRect(wx, y + 20 + off, 12, 2);
     ctx.fillRect(wx, y + 28 - off, 10, 2);
     ctx.fillRect(wx, y + 36 + off, 14, 2);
+  } else if (h.armadura === 'samurai') {
+    // SAMURAI: faixa branca + ELMO KABUTO com chifres dourados em meia-lua
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x + 4, y + 22, 28, 3); // faixa do peito
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + h.w/2 - 1, y + 24, 2, 8); // botão dourado central
+    // Kabuto (elmo): cobre a parte superior da cabeça
+    ctx.fillStyle = '#400';
+    ctx.fillRect(x + 4, y - 8, 28, 14);              // base do elmo
+    ctx.fillRect(x + 6, y + 4, 24, 4);                // aba inferior
+    // Chifres dourados em meia-lua
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x - 4, y - 6, 8, 4);
+    ctx.fillRect(x - 8, y - 4, 4, 6);
+    ctx.fillRect(x + h.w - 4, y - 6, 8, 4);
+    ctx.fillRect(x + h.w + 4, y - 4, 4, 6);
+    // Joia central no elmo (kuwagata)
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + h.w/2 - 4, y - 12, 8, 4);
+    ctx.fillStyle = '#f00';
+    ctx.fillRect(x + h.w/2 - 1, y - 8, 2, 4);
+  } else if (h.armadura === 'elementar') {
+    // ELEMENTAR Água + Fogo: tronco SPLIT vertical (vermelho|azul) + chapéu de mago
+    // Re-pinta o tronco com 2 metades (sobrepõe-se à cor base)
+    ctx.fillStyle = '#c00';
+    ctx.fillRect(x + 4, y + 18, 14, 24);              // metade vermelha
+    ctx.fillStyle = '#06c';
+    ctx.fillRect(x + 18, y + 18, 14, 24);             // metade azul
+    // Linha divisória
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + h.w/2 - 1, y + 18, 2, 24);
+    // Chama no ombro vermelho
+    ctx.fillStyle = (Math.floor(tempo/4)%2) ? '#f80' : '#fc0';
+    ctx.fillRect(x + 6, y + 14, 4, 6);
+    // Gota de água no ombro azul
+    ctx.fillStyle = '#cff';
+    ctx.fillRect(x + 26, y + 14, 4, 6);
+    // CHAPÉU DE MAGO (cone roxo) por cima da cabeça
+    ctx.fillStyle = '#608';
+    ctx.beginPath();
+    ctx.moveTo(x + h.w/2, y - 22);   // ponta
+    ctx.lineTo(x + 2, y + 4);          // base esquerda
+    ctx.lineTo(x + h.w - 2, y + 4);    // base direita
+    ctx.closePath();
+    ctx.fill();
+    // Aba do chapéu
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x, y + 2, h.w, 4);
+    // Estrela amarela no chapéu
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(x + h.w/2 - 1, y - 12, 2, 6);
+    ctx.fillRect(x + h.w/2 - 3, y - 10, 6, 2);
   } else if (h.armadura === 'princesa') {
     // PRINCESA GUERREIRA: vestido dourado + cinto branco + coroa
     // Saia em trapézio que alarga até aos pés
@@ -2251,6 +2362,25 @@ function desenharHeroi() {
     ctx.fillRect(sx, y + 20, 40, 6);
     ctx.fillStyle = '#fc0';
     ctx.fillRect(h.olhandoDireita ? sx - 4 : sx + 40, y + 18, 4, 10);
+  }
+  // SAMURAI: 2 catanas estendidas em diagonal durante o ataque
+  if (h.ataqueAtivo > 0 && h.armadura === 'samurai') {
+    const dirS = h.olhandoDireita ? 1 : -1;
+    const baseX = h.olhandoDireita ? x + h.w : x;
+    // Catana frente (alta)
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(baseX, y + 14, 50 * dirS, 4);
+    ctx.fillStyle = '#400'; // bainha/punho
+    ctx.fillRect(baseX - 4*dirS, y + 12, 6, 8);
+    // Catana atrás (baixa)
+    ctx.fillStyle = '#ddd';
+    ctx.fillRect(baseX, y + 28, 44 * dirS, 4);
+    ctx.fillStyle = '#400';
+    ctx.fillRect(baseX - 4*dirS, y + 26, 6, 8);
+    // Brilho dourado nas pontas
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(baseX + 50*dirS - 2*dirS, y + 13, 2, 5);
+    ctx.fillRect(baseX + 44*dirS - 2*dirS, y + 27, 2, 5);
   }
   // PRINCESA: 2 espadas estendidas para ambos os lados durante o ataque AOE
   if (h.ataqueAtivo > 0 && h.armadura === 'princesa') {
@@ -2411,7 +2541,8 @@ function desenharAFOBoss(ini) {
 // Glow por tipo de projéctil — cor do halo luminoso.
 const GLOW_PROJ = {
   shuriken:'#fff', laser:'#0ff', fogo:'#f80', gelo:'#cef',
-  terra:'#963', vento:'#9f9', pena:'#fc0', chama_azul:'#08f', feixe:'#ffe'
+  terra:'#963', vento:'#9f9', pena:'#fc0', chama_azul:'#08f', feixe:'#ffe',
+  fogo_dual:'#f44', agua_dual:'#48f'
 };
 function desenharProjectil(p) {
   ctx.shadowColor = GLOW_PROJ[p.tipo] || '#fff';
@@ -2505,6 +2636,22 @@ function desenharProjectilInterno(p) {
     ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 5, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.fillRect(p.x + p.w/2 - 2, p.y + 4, 4, 4);
+  } else if (p.tipo === 'fogo_dual') {
+    // Bola de fogo (vermelho + amarelo)
+    ctx.fillStyle = '#c00';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = (Math.floor(tempo/3)%2) ? '#f60' : '#fc0';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x + 4, p.y + p.h/2 - 1, 4, 2);
+  } else if (p.tipo === 'agua_dual') {
+    // Bola de água (azul + branco)
+    ctx.fillStyle = '#06c';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = (Math.floor(tempo/3)%2) ? '#48f' : '#9cf';
+    ctx.beginPath(); ctx.arc(p.x + p.w/2, p.y + p.h/2, p.w/2 - 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(p.x + p.w - 8, p.y + p.h/2 - 1, 4, 2);
   } else if (p.tipo === 'feixe') {
     // Feixe divino: dourado com núcleo branco e halo
     ctx.fillStyle = 'rgba(255,255,200,0.4)';
@@ -2607,9 +2754,58 @@ function atualizarGameOver() {
 /* ---------- ESTADO: VITÓRIA ---------- */
 function atualizarVitoria() {
   tocarMusica('vitoria');
+  vitoriaTimer += dtF;
   const f = FASES[faseAtual];
   const haProxima = (faseAtual + 1) < FASES.length;
-  // Ecrã especial para o final do jogo (Shigaraki derrotado)
+  // CINEMÁTICA DE RECOMPENSA (primeiros ~140 frames se há armadura nova)
+  if (f.recompensa && !f.finalDoJogo && vitoriaTimer < 140 && !teclasJustNow['Enter']) {
+    // Fundo escuro com gradiente dourado pulsante
+    ctx.fillStyle = 'rgba(20,15,0,0.95)'; ctx.fillRect(0, 0, W, H);
+    const pulso = (Math.sin(tempo*0.15)+1)/2;
+    const grd = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, 380);
+    grd.addColorStop(0, `rgba(255,200,40,${0.4 + pulso*0.3})`);
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
+    // Raios de luz a girar atrás do herói
+    ctx.save();
+    ctx.translate(W/2, H/2 + 20);
+    ctx.rotate(tempo * 0.02);
+    ctx.fillStyle = 'rgba(255,200,40,0.25)';
+    for (let i = 0; i < 12; i++) {
+      ctx.rotate(Math.PI/6);
+      ctx.fillRect(0, -300, 30, 600);
+    }
+    ctx.restore();
+    // Herói no centro, em pose de glória — usa a função desenharHeroi
+    // mas posiciona-o ao centro com escala 2.5x
+    const heroOriginalX = heroi.x, heroOriginalY = heroi.y;
+    heroi.x = -18; heroi.y = -28;
+    ctx.save();
+    ctx.translate(W/2, H/2 + 30);
+    ctx.scale(2.5, 2.5);
+    desenharHeroi();
+    ctx.restore();
+    heroi.x = heroOriginalX; heroi.y = heroOriginalY;
+    // Texto: "NOVA ARMADURA DESBLOQUEADA!"
+    ctx.textAlign = 'center';
+    const fade = Math.min(1, vitoriaTimer / 30);
+    ctx.globalAlpha = fade;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px Courier New';
+    ctx.fillText('★ NOVA ARMADURA DESBLOQUEADA ★', W/2, 70);
+    ctx.fillStyle = '#fc0';
+    ctx.font = 'bold 44px Courier New';
+    const nomeArmadura = NOME_ARMADURA[f.recompensa] || f.recompensa.toUpperCase();
+    ctx.fillText(nomeArmadura, W/2, H - 80);
+    ctx.fillStyle = (Math.floor(tempo/30)%2) ? '#fff' : '#aaa';
+    ctx.font = '14px Courier New';
+    ctx.fillText('ENTER ▶ avançar', W/2, H - 30);
+    ctx.globalAlpha = 1;
+    if (teclasJustNow['Enter']) vitoriaTimer = 999; // salta para stats
+    return;
+  }
+  // Final do jogo: ecrã especial
+  // Ecrã especial para o final do jogo (All For One derrotado)
   if (f.finalDoJogo) {
     ctx.fillStyle = 'rgba(20,0,40,0.92)';
     ctx.fillRect(0, 0, W, H);
