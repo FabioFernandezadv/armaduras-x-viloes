@@ -3523,6 +3523,40 @@ function desenharHeroi() {
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
 
+  // ════════════════════════════════════════════════════════
+  // SE HÁ PNG-RETRATO PARA ESTA ARMADURA: usa-o em vez de geometria.
+  // Faz mirror horizontal consoante a direcção. Salta o resto.
+  // ════════════════════════════════════════════════════════
+  const ret = imgArmaduras[h.armadura];
+  if (ret && ret.pronto) {
+    // Tamanho on-screen: um pouco maior que o hitbox para ficar visível
+    const dh = h.h * 1.6;            // 56 * 1.6 ≈ 90 px
+    const ratio = ret.img.width / ret.img.height;
+    const dw = dh * ratio;
+    const dx = h.x + h.w/2 - dw/2;
+    const dy = h.y + h.h - dh;       // alinha pelos pés
+    ctx.save();
+    if (!h.olhandoDireita) {
+      // Espelha horizontalmente
+      ctx.translate(dx + dw, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-dx, 0);
+    }
+    // Pequena escala extra durante o ataque (impacto visual)
+    if (h.ataqueAtivo > 0) {
+      const punch = 1 + (h.ataqueAtivo / 12) * 0.08;
+      const cxA = dx + dw/2;
+      const cyA = dy + dh/2;
+      ctx.translate(cxA, cyA);
+      ctx.scale(punch, punch);
+      ctx.translate(-cxA, -cyA);
+    }
+    ctx.drawImage(ret.img, dx, dy, dw, dh);
+    ctx.restore();
+    ctx.restore(); // fecha o save() do bobOffset
+    return;
+  }
+
   const x = h.x, y = h.y;
 
   // Paleta por armadura: identidade visual distinta para cada modo.
