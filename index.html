@@ -729,6 +729,21 @@ function aplicarSave(save) {
   nivelNG = save.nivelNG || 0;
   heroi.vidaMax = save.vidaMax || 6;
 }
+// Color grading: tinta de cor aplicada por cima da cena para identidade visual.
+// Cada fase tem a sua tonalidade característica (subtil, ~10-15% alpha).
+const COLOR_GRADE = {
+  1: { cor: 'rgba(120, 70, 30, 0.10)' },   // Casa - quente aconchegante
+  2: { cor: 'rgba(255, 80, 0, 0.13)' },    // Bombeiros - laranja-fogo
+  3: { cor: 'rgba(40, 60, 180, 0.16)' },   // Polícia - azul-frio
+  4: { cor: 'rgba(0, 200, 180, 0.12)' },   // Hospital - verde-clínico
+  5: { cor: 'rgba(255, 220, 80, 0.10)' },  // Supermercado - amarelo
+  6: { cor: 'rgba(160, 0, 255, 0.18)' },   // Fliperama - roxo neon intenso
+  7: { cor: 'rgba(140, 30, 50, 0.15)' },   // Restaurante - vermelho-vinho
+  8: { cor: 'rgba(255, 140, 0, 0.12)' },   // McDonald's - laranja sat
+  9: { cor: 'rgba(60, 140, 60, 0.10)' },   // Escola - verde-quadro
+  10:{ cor: 'rgba(160, 0, 220, 0.20)' },   // Base AFO - roxo intenso
+};
+
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
   cavaleiro: 'CAVALEIRO', ninja: 'NINJA', robo: 'ROBÔ',
@@ -2272,6 +2287,7 @@ function atualizarJogo() {
 
   // 2. Física do herói (escalada por dtF para ser independente de fps)
   // Em voo, gravidade desligada.
+  const noChaoAntes = heroi.noChao;
   if (!heroi.voando) heroi.vy += GRAVIDADE * dtF;
   heroi.x += heroi.vx * dtF;
   heroi.y += heroi.vy * dtF;
@@ -2320,6 +2336,36 @@ function atualizarJogo() {
   const larguraFase = FASES[faseAtual].largura;
   if (heroi.x < 0) heroi.x = 0;
   if (heroi.x > larguraFase - heroi.w) heroi.x = larguraFase - heroi.w;
+
+  // 2b. Partículas ambientais
+  // POEIRA ao correr — pequenas partículas castanhas para trás
+  if (heroi.noChao && Math.abs(heroi.vx) > 1 && Math.random() < 0.35) {
+    const pdir = heroi.olhandoDireita ? -1 : 1;
+    particulas.push({
+      x: heroi.x + heroi.w/2,
+      y: heroi.y + heroi.h - 4,
+      vx: pdir * (0.5 + Math.random()),
+      vy: -Math.random() * 1.5,
+      vida: 18 + Math.random()*10,
+      tam: 2 + Math.floor(Math.random()*2),
+      cor: '#a87a4a',
+    });
+  }
+  // SALPICOS ao aterrar (transição air → ground)
+  if (!noChaoAntes && heroi.noChao) {
+    for (let i = 0; i < 8; i++) {
+      const ang = -Math.PI + Math.random() * Math.PI;
+      particulas.push({
+        x: heroi.x + heroi.w/2,
+        y: heroi.y + heroi.h - 2,
+        vx: Math.cos(ang) * (1 + Math.random()*2),
+        vy: Math.sin(ang) * (0.5 + Math.random()),
+        vida: 14 + Math.random()*8,
+        tam: 2 + Math.floor(Math.random()*2),
+        cor: '#cca87a',
+      });
+    }
+  }
 
   // 3. Hitbox de ataque
   if (heroi.ataqueAtivo > 0) {
@@ -2698,6 +2744,21 @@ function atualizarJogo() {
   ctx.restore();
   // Iluminação dinâmica (cenas escuras): cone de luz à volta do herói.
   desenharIluminacao();
+  // COLOR GRADING — tinta global por fase (subtil, identifica a vibe)
+  const grade = COLOR_GRADE[FASES[faseAtual].numero];
+  if (grade) {
+    ctx.fillStyle = grade.cor;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // VINHETA DINÂMICA — sempre presente; mais intensa com vida baixa
+  const vidaPct = heroi.vida / heroi.vidaMax;
+  const vinhetaA = 0.22 + (1 - vidaPct) * 0.45;
+  const corVinheta = vidaPct < 0.3 ? '255,0,0' : '0,0,0';
+  const vinGrd = ctx.createRadialGradient(W/2, H/2, W*0.32, W/2, H/2, W*0.62);
+  vinGrd.addColorStop(0, 'rgba(0,0,0,0)');
+  vinGrd.addColorStop(1, `rgba(${corVinheta}, ${vinhetaA})`);
+  ctx.fillStyle = vinGrd;
+  ctx.fillRect(0, 0, W, H);
   desenharHUD();
   // Flash branco no kill do boss (decai de 8 frames até 0)
   if (flashTimer > 0) {
@@ -2709,14 +2770,7 @@ function atualizarJogo() {
     ctx.fillStyle = `rgba(255,0,0,${heroDamageFlash/14 * 0.4})`;
     ctx.fillRect(0, 0, W, H);
   }
-  // Vinheta vermelha quando vida = 1 (perigo)
-  if (heroi.vida === 1 && estado === 'jogo') {
-    const pulso = (Math.sin(tempo*0.2)+1)/2;
-    const grd = ctx.createRadialGradient(W/2, H/2, W/3, W/2, H/2, W/2 + 100);
-    grd.addColorStop(0, 'rgba(255,0,0,0)');
-    grd.addColorStop(1, `rgba(255,0,0,${0.3 + pulso*0.2})`);
-    ctx.fillStyle = grd; ctx.fillRect(0, 0, W, H);
-  }
+  // (vinheta agora renderizada antes do HUD com intensidade dinâmica)
   // Overlay de transição de sub-fase (1.1 → 1.2 etc)
   if (subFaseTransicaoTimer > 0) {
     const tt = subFaseTransicaoTimer / 90;
@@ -3898,6 +3952,15 @@ function desenharHeroi() {
     ctx.fillRect(x + 13, y + 15, 1, 1);
     ctx.fillRect(x + 20, y + 15, 1, 1);
   }
+
+  // GRADIENT OVERLAY — adiciona sensação de profundidade ao herói
+  // (highlight em cima + sombra em baixo, ~5% alpha)
+  const grdH = ctx.createLinearGradient(0, y, 0, y + h.h);
+  grdH.addColorStop(0, 'rgba(255,255,255,0.18)');
+  grdH.addColorStop(0.5, 'rgba(255,255,255,0)');
+  grdH.addColorStop(1, 'rgba(0,0,0,0.22)');
+  ctx.fillStyle = grdH;
+  ctx.fillRect(x, y, h.w, h.h);
 
   // Espada na mão (só na animação de ataque do Cavaleiro)
   if (h.ataqueAtivo > 0 && h.armadura === 'cavaleiro') {
