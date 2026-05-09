@@ -37,6 +37,8 @@
            background: rgba(255,200,0,0.3); border-color: #fc0; }
   #bEnter{ right: 30px;  top: 30px;     width: 80px; height: 50px; font-size: 16px;
            background: rgba(80,255,80,0.3); border-color: #4f4; border-radius: 12px; }
+  #bPausa{ left: 30px;   top: 30px;     width: 50px; height: 50px; font-size: 22px;
+           background: rgba(255,255,255,0.2); border-color: #ccc; border-radius: 12px; }
 
   /* Activa controlos só em dispositivos táctilis */
   @media (pointer: coarse) {
@@ -57,6 +59,7 @@
   <div class="btn"   id="bAtq"  data-key="KeyJ">⚔</div>
   <div class="btn"   id="bArm"  data-key="KeyK">↻</div>
   <div class="btn sq" id="bEnter" data-key="Enter">START</div>
+  <div class="btn sq" id="bPausa" data-key="KeyP">⏸</div>
 </div>
 
 <script>
@@ -132,7 +135,15 @@ window.addEventListener('keydown', e => {
   if (!teclas[e.code]) teclasJustNow[e.code] = true;
   teclas[e.code] = true;
 });
-window.addEventListener('keyup', e => { teclas[e.code] = false; });
+window.addEventListener('keyup', e => {
+  teclas[e.code] = false;
+  // Variable Jump Height: soltar a tecla de salto cedo corta o salto
+  // (cria sensação de controlo fino: tap = salto curto, hold = salto alto)
+  if ((e.code === 'ArrowUp' || e.code === 'KeyW' || e.code === 'Space') &&
+      estado === 'jogo' && heroi.vy < -3 && !heroi.voando) {
+    heroi.vy *= 0.4;
+  }
+});
 
 // Controlos da música: M = mute toggle, − = baixar volume, + = subir volume
 window.addEventListener('keydown', e => {
@@ -159,11 +170,17 @@ document.querySelectorAll('#touch .btn').forEach(btn => {
     teclas[key] = true;
     if (!audioCtx) { try { audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } catch(_){} }
   };
-  const release = (e) => { e.preventDefault(); teclas[key] = false; };
+  const release = (e) => {
+    e.preventDefault();
+    teclas[key] = false;
+    // Variable jump também no telemóvel
+    if (key === 'Space' && estado === 'jogo' && heroi.vy < -3 && !heroi.voando) {
+      heroi.vy *= 0.4;
+    }
+  };
   btn.addEventListener('touchstart', press, { passive: false });
   btn.addEventListener('touchend',   release, { passive: false });
   btn.addEventListener('touchcancel',release, { passive: false });
-  // Bónus: também funciona com rato em ecrãs híbridos
   btn.addEventListener('mousedown', press);
   btn.addEventListener('mouseup',   release);
   btn.addEventListener('mouseleave',release);
@@ -407,6 +424,8 @@ const heroi = {
   angelicalCounter: 0,       // cicla 3 ataques: pena → chama azul → feixe
   dragaoCounter: 0,          // cicla 4 mega-ataques do Dragão Supremo
   trail: [],                 // posições passadas para efeito de rasto
+  coyoteTime: 0,             // frames de "perdão" depois de sair de uma plataforma
+  jumpBuffer: 0,             // frames de "buffer" para salto antecipado
   ataqueAtivo: 0, // frames restantes da animação de ataque
 };
 
@@ -1094,6 +1113,7 @@ function loop(now) {
   else if (estado === 'historia') atualizarHistoria();
   else if (estado === 'cutscene') atualizarCutscene();
   else if (estado === 'jogo')     atualizarJogo();
+  else if (estado === 'pausa')    atualizarPausa();
   else if (estado === 'gameover') atualizarGameOver();
   else if (estado === 'vitoria')  atualizarVitoria();
 
@@ -1361,6 +1381,11 @@ function desenharShigaraki(x, y) {
 
 /* ---------- ESTADO: JOGO ---------- */
 function atualizarJogo() {
+  // PAUSE: P ou Escape pausa o jogo
+  if (teclasJustNow['KeyP'] || teclasJustNow['Escape']) {
+    estado = 'pausa';
+    return;
+  }
   // Música adaptativa:
   //  - se há boss perto E vida < 40% → tema "enraged" (mais rápido, mais alto)
   //  - se há boss perto → tema boss
@@ -1382,8 +1407,11 @@ function atualizarJogo() {
   heroi.vx = mover * VEL_ANDAR;
   if (mover !== 0) heroi.olhandoDireita = (mover > 0);
 
-  // Salto / voo
+  // Salto / voo (com Coyote Time + Jump Buffer)
   const tentouSaltar = teclasJustNow['ArrowUp'] || teclasJustNow['KeyW'] || teclasJustNow['Space'];
+  // Decai timers
+  if (heroi.jumpBuffer > 0) heroi.jumpBuffer -= dtF;
+  if (!heroi.noChao && heroi.coyoteTime > 0) heroi.coyoteTime -= dtF;
   if (tentouSaltar) {
     const passou = tempo - heroi.ultimoSaltoTime;
     // ANGELICAL ou DRAGÃO SUPREMO: duplo-clique no salto activa voo
@@ -1392,13 +1420,17 @@ function atualizarJogo() {
       heroi.vy = heroi.voando ? -3 : 0;
       som(heroi.voando ? 1200 : 600, 0.18, 'triangle', 0.12);
     } else if (heroi.voando) {
-      // Em voo, salto curto = subida adicional
       heroi.vy = -6;
       som(900, 0.06, 'triangle', 0.08);
-    } else if (heroi.noChao) {
+    } else if (heroi.noChao || heroi.coyoteTime > 0) {
+      // Coyote: ainda pode saltar até 6 frames depois de sair do chão
       heroi.vy = -FORCA_SALTO;
       heroi.noChao = false;
+      heroi.coyoteTime = 0;
       som(330, 0.1);
+    } else {
+      // No ar e fora do coyote: bufferiza para próximo aterragem (8 frames)
+      heroi.jumpBuffer = 8;
     }
     heroi.ultimoSaltoTime = tempo;
   }
@@ -1445,18 +1477,36 @@ function atualizarJogo() {
     heroi.y = CHAO_Y - heroi.h;
     heroi.vy = 0;
     heroi.noChao = true;
+    heroi.coyoteTime = 6;
     if (heroi.voando) heroi.voando = false;
+    // Consume buffered jump (saltou um pouco antes de aterrar)
+    if (heroi.jumpBuffer > 0 && !heroi.voando) {
+      heroi.vy = -FORCA_SALTO;
+      heroi.noChao = false;
+      heroi.jumpBuffer = 0;
+      heroi.coyoteTime = 0;
+      som(330, 0.1);
+    }
   }
   // Colisão com PLATAFORMAS — só "aterra" quando vem de cima e estava acima.
   if (heroi.vy >= 0 && !heroi.voando) {
     const plats = FASES[faseAtual].plataformas || [];
-    const yAnterior = heroi.y - heroi.vy * dtF; // posição no início do frame
+    const yAnterior = heroi.y - heroi.vy * dtF;
     for (const p of plats) {
       if (heroi.x + heroi.w > p.x + 4 && heroi.x < p.x + p.w - 4 &&
           heroi.y + heroi.h >= p.y && yAnterior + heroi.h <= p.y + 2) {
         heroi.y = p.y - heroi.h;
         heroi.vy = 0;
         heroi.noChao = true;
+        heroi.coyoteTime = 6;
+        // Consome jump bufferizado também ao aterrar em plataforma
+        if (heroi.jumpBuffer > 0) {
+          heroi.vy = -FORCA_SALTO;
+          heroi.noChao = false;
+          heroi.jumpBuffer = 0;
+          heroi.coyoteTime = 0;
+          som(330, 0.1);
+        }
         break;
       }
     }
@@ -1677,6 +1727,17 @@ function atualizarJogo() {
     if (pk.y + pk.h >= CHAO_Y - 4) {
       pk.y = CHAO_Y - 4 - pk.h;
       pk.vy = 0;
+    }
+    // PICKUP MAGNET: a < 100px do herói, é puxado em direcção a ele
+    const mdx = (heroi.x + heroi.w/2) - (pk.x + pk.w/2);
+    const mdy = (heroi.y + heroi.h/2) - (pk.y + pk.h/2);
+    const mdist = Math.sqrt(mdx*mdx + mdy*mdy);
+    if (mdist < 100 && mdist > 4) {
+      // Lerp suave: quanto mais perto, mais forte (efeito acelera)
+      const forca = (1 - mdist/100) * 0.6;
+      pk.x += mdx / mdist * forca * 8 * dtF;
+      pk.y += mdy / mdist * forca * 8 * dtF;
+      pk.vy = 0; // anula gravidade enquanto está a ser atraído
     }
     // Apanhar
     if (colide(heroi, pk)) {
@@ -3295,6 +3356,38 @@ function desenharCoracao(x, y, cheio) {
   ctx.lineTo(x+11, y + 24);
   ctx.closePath();
   ctx.fill();
+}
+
+/* ---------- ESTADO: PAUSA ---------- */
+// O canvas mantém o último frame do jogo (não o redesenhamos).
+// Por cima, overlay com instruções.
+function atualizarPausa() {
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fc0';
+  ctx.font = 'bold 56px Courier New';
+  ctx.fillText('⏸  PAUSADO', W/2, H/2 - 100);
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px Courier New';
+  ctx.fillText('P ou ESC ▶ continuar', W/2, H/2 - 30);
+  ctx.fillText('Q ▶ voltar ao menu', W/2, H/2 + 0);
+
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px Courier New';
+  ctx.fillText('— controlos —', W/2, H/2 + 50);
+  ctx.font = '12px Courier New';
+  ctx.fillStyle = '#888';
+  ctx.fillText('Setas / WASD = andar  ·  W/Espaço/↑ = saltar  ·  J/Z = atacar', W/2, H/2 + 75);
+  ctx.fillText('K/X = trocar armadura  ·  duplo-clique salto = voar (Angelical/Dragão)', W/2, H/2 + 95);
+  ctx.fillText('M = mute música  ·  − / = volume  ·  R = reiniciar (game over)', W/2, H/2 + 115);
+
+  if (teclasJustNow['KeyP'] || teclasJustNow['Escape']) {
+    estado = 'jogo';
+  } else if (teclasJustNow['KeyQ']) {
+    estado = 'menu';
+  }
 }
 
 /* ---------- ESTADO: GAME OVER ---------- */
