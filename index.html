@@ -3482,6 +3482,22 @@ function desenharHeroi() {
   // Pisca quando invencível
   if (h.invencivel > 0 && Math.floor(h.invencivel/4) % 2 === 0) return;
 
+  // IDLE BOB — herói "respira" subtilmente quando parado no chão
+  const idle = h.vx === 0 && h.noChao && h.ataqueAtivo === 0 && !h.voando;
+  const bobOffset = idle ? Math.sin(tempo * 0.08) * 1.2 : 0;
+  ctx.save();
+  ctx.translate(0, bobOffset);
+
+  // HALO/BLOOM — aura subtil da cor da armadura por trás do herói
+  const corHalo = corTrail(h.armadura);
+  ctx.fillStyle = corHalo;
+  ctx.shadowColor = corHalo;
+  ctx.shadowBlur = 18;
+  ctx.globalAlpha = 0.18;
+  ctx.fillRect(h.x + 4, h.y + 4, h.w - 8, h.h - 8);
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+
   const x = h.x, y = h.y;
 
   // Paleta por armadura: identidade visual distinta para cada modo.
@@ -4027,6 +4043,7 @@ function desenharHeroi() {
     ctx.fillRect(x - 4, y + 21, 4, 3);
     ctx.fillRect(x + h.w, y + 21, 4, 3);
   }
+  ctx.restore(); // fim do idle bob
 }
 
 /* ---------- DESENHO: INIMIGOS ---------- */
@@ -4089,6 +4106,15 @@ function desenharInimigo(ini) {
     if (ini.chefe && !piscar) desenharAcessorioBoss(ini);
   }
 
+  // GRADIENT OVERLAY nos inimigos — sensação de volume 3D
+  if (!piscar && ini.tipo !== 'shigaraki' && ini.tipo !== 'afo') {
+    const grdI = ctx.createLinearGradient(0, ini.y, 0, ini.y + ini.h);
+    grdI.addColorStop(0, 'rgba(255,255,255,0.16)');
+    grdI.addColorStop(0.5, 'rgba(255,255,255,0)');
+    grdI.addColorStop(1, 'rgba(0,0,0,0.22)');
+    ctx.fillStyle = grdI;
+    ctx.fillRect(ini.x, ini.y, ini.w, ini.h);
+  }
   // Barra de vida (chefe)
   if (ini.chefe) {
     const bw = 100;
