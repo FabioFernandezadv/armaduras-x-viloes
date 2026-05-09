@@ -675,8 +675,7 @@ const TODAS_ARMADURAS = [
   'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
   'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
 ];
-// Pré-carregar retratos (cada um faz fallback se PNG não existir)
-TODAS_ARMADURAS.forEach(carregarRetratoArmadura);
+// (pré-carregamento dos retratos PNG é feito depois de carregarRetratoArmadura ser definida — ver mais abaixo)
 
 // Recompensa em moedas por inimigo derrotado
 function moedasPorInimigo(ini) {
@@ -781,6 +780,8 @@ function carregarRetratoArmadura(id) {
   img.onload = () => imgArmaduras[id].pronto = true;
   img.onerror = () => imgArmaduras[id].pronto = false;
 }
+// Pré-carregar retratos (cada um faz fallback se PNG não existir)
+TODAS_ARMADURAS.forEach(carregarRetratoArmadura);
 
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
