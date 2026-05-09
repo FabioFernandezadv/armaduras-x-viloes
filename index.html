@@ -457,6 +457,8 @@ let shake = 0;       // intensidade actual de screen shake (decresce com o tempo
 let pickups = [];        // corações e moedas largados pelos inimigos
 let projeteisInimigo = []; // projécteis lançados pelos chefes
 let bossDerrotadoNaFase = false; // flag fiável: foi marcada quando o boss morre.
+let slowmoTimer = 0;             // frames de slow-motion (hit-stop dramático)
+let flashTimer = 0;              // frames de flash branco no ecrã
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
 
@@ -773,6 +775,8 @@ function iniciarFase(idx) {
   projeteisInimigo = [];
   shake = 0;
   bossDerrotadoNaFase = false;
+  slowmoTimer = 0;
+  flashTimer = 0;
   camera.x = 0;
   // Reset cutscene da fase
   cutsceneIndice = 0; cutsceneTimer = 0;
@@ -800,6 +804,12 @@ function loop(now) {
   const dt = (now - lastTime) / 1000;
   lastTime = now;
   dtF = Math.min(dt * 60, 3);
+  // Hit-stop: enquanto slowmoTimer > 0, abranda toda a física para 25%.
+  if (slowmoTimer > 0) {
+    slowmoTimer -= dtF;       // conta-se em tempo real (não abrandado)
+    dtF *= 0.22;              // resto do mundo abranda
+  }
+  if (flashTimer > 0) flashTimer -= dtF;
   tempo += dtF;
   // Actualiza o estado actual e desenha
   if (estado === 'menu')      atualizarMenu();
@@ -1060,9 +1070,13 @@ function atualizarJogo() {
             pontos += ini.pontos;
             somMorte();
             lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
-            tremerEcra(ini.chefe ? 12 : 5);
+            tremerEcra(ini.chefe ? 16 : 5);
             largarPickup(ini);
-            if (ini.chefe) bossDerrotadoNaFase = true;
+            if (ini.chefe) {
+              bossDerrotadoNaFase = true;
+              slowmoTimer = 36;   // ~0.6s de slow-mo
+              flashTimer = 8;     // flash branco curto
+            }
           }
         }
       }
@@ -1096,9 +1110,13 @@ function atualizarJogo() {
           pontos += ini.pontos;
           somMorte();
           lancarParticulas(ini.x + ini.w/2, ini.y + ini.h/2, ini.tipo==='dragao'?'#a4f':'#f44', 16, 5);
-          tremerEcra(ini.chefe ? 12 : 5);
+          tremerEcra(ini.chefe ? 16 : 5);
           largarPickup(ini);
-          if (ini.chefe) bossDerrotadoNaFase = true;
+          if (ini.chefe) {
+            bossDerrotadoNaFase = true;
+            slowmoTimer = 36;
+            flashTimer = 8;
+          }
         }
         // Atravessa: feixe, vento, laser (não gasta vida do projéctil)
         if (!p.atravessa && p.tipo !== 'laser') p.vida = 0;
@@ -1254,7 +1272,64 @@ function atualizarJogo() {
   if (hitboxAtaque) desenharHitbox(hitboxAtaque);
   ctx.restore();
   ctx.restore();
+  // Iluminação dinâmica (cenas escuras): cone de luz à volta do herói.
+  desenharIluminacao();
   desenharHUD();
+  // Flash branco no kill do boss (decai de 8 frames até 0)
+  if (flashTimer > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(1, flashTimer/8) * 0.7})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+// Fases que ficam DEPOIS do "anoitecer" — escurecemos tudo e iluminamos
+// só à volta do herói. Vai por cima da cena, antes do HUD.
+const FASES_ESCURAS = {
+  3: { intensidade: 0.55, cor: 'rgba(0,8,30,1)' },     // Polícia (azul nocturno)
+  6: { intensidade: 0.7,  cor: 'rgba(20,0,40,1)' },    // Fliperama (neon roxo)
+  10:{ intensidade: 0.75, cor: 'rgba(20,0,30,1)' },    // Base AFO
+};
+function desenharIluminacao() {
+  const cfg = FASES_ESCURAS[FASES[faseAtual].numero];
+  if (!cfg) return;
+  // Posição do herói no ecrã (depois de aplicar câmara)
+  const cx = heroi.x + heroi.w/2 - camera.x;
+  const cy = heroi.y + heroi.h/2;
+  // Raio da luz: maior se voar (aura angelical) ou se for boss perto
+  let raio = 220;
+  if (heroi.armadura === 'angelical') raio = 280;
+  // Modo "destination-out" cria um buraco numa camada escura
+  ctx.save();
+  // Camada escura por cima de tudo
+  ctx.fillStyle = cfg.cor;
+  ctx.globalAlpha = cfg.intensidade;
+  ctx.fillRect(0, 0, W, H);
+  // Recorta o cone à volta do herói com gradiente radial
+  const grd = ctx.createRadialGradient(cx, cy, 20, cx, cy, raio);
+  grd.addColorStop(0,   'rgba(0,0,0,1)');
+  grd.addColorStop(0.6, 'rgba(0,0,0,0.5)');
+  grd.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(cx, cy, raio, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // Brilho extra dos projécteis (aditivo) para realçar dentro do escuro
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (const p of projeteis) {
+    const cor = GLOW_PROJ[p.tipo] || '#fff';
+    const grd2 = ctx.createRadialGradient(p.x + p.w/2, p.y + p.h/2, 0,
+                                          p.x + p.w/2, p.y + p.h/2, 40);
+    grd2.addColorStop(0, cor);
+    grd2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grd2;
+    ctx.fillRect(p.x - 30, p.y - 30, p.w + 60, p.h + 60);
+  }
+  ctx.restore();
 }
 
 /* ---------- DESENHO: SOMBRA / PARTÍCULA ---------- */
