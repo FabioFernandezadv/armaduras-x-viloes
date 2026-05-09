@@ -675,6 +675,8 @@ const TODAS_ARMADURAS = [
   'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
   'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
 ];
+// Pré-carregar retratos (cada um faz fallback se PNG não existir)
+TODAS_ARMADURAS.forEach(carregarRetratoArmadura);
 
 // Recompensa em moedas por inimigo derrotado
 function moedasPorInimigo(ini) {
@@ -768,6 +770,17 @@ const COLOR_GRADE = {
   9: { cor: 'rgba(60, 140, 60, 0.10)' },   // Escola - verde-quadro
   10:{ cor: 'rgba(160, 0, 220, 0.20)' },   // Base AFO - roxo intenso
 };
+
+// Imagens-retrato das armaduras (carregam de assets/armaduras/<id>.png).
+// Se a imagem não existir, fallback para mini-render do herói.
+const imgArmaduras = {};
+function carregarRetratoArmadura(id) {
+  const img = new Image();
+  img.src = `assets/armaduras/${id}.png`;
+  imgArmaduras[id] = { img, pronto: false };
+  img.onload = () => imgArmaduras[id].pronto = true;
+  img.onerror = () => imgArmaduras[id].pronto = false;
+}
 
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
@@ -2082,8 +2095,20 @@ function atualizarSelecaoArmadura() {
       ctx.lineWidth = 4;
       ctx.strokeRect(cx + 4, cy + 4, cellW - 8, cellH - 8);
     }
-    // Preview do herói com aquela armadura
-    desenharHeroiPreview(cx + cellW/2 - 14, cy + 8, armId, 0.7);
+    // Preview: usa PNG retrato se existir, senão mini-render do herói
+    const retrato = imgArmaduras[armId];
+    if (retrato && retrato.pronto) {
+      // Centra imagem na cell, mantém proporção (cell tem ~140 wide × 60 alto)
+      const maxH = 78, maxW = 100;
+      const ratio = retrato.img.width / retrato.img.height;
+      let dh = maxH, dw = maxH * ratio;
+      if (dw > maxW) { dw = maxW; dh = maxW / ratio; }
+      ctx.drawImage(retrato.img,
+        cx + cellW/2 - dw/2, cy + 4,
+        dw, dh);
+    } else {
+      desenharHeroiPreview(cx + cellW/2 - 14, cy + 8, armId, 0.7);
+    }
     // Overlay escuro nas armaduras bloqueadas
     if (!desbloqueada) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
