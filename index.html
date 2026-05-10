@@ -682,6 +682,9 @@ const PRECO_ARMADURA = {
   boss_dragao: 200, boss_demonio: 250, boss_comissario: 300,
   boss_doutor: 400, boss_shigaraki: 800, boss_glitch: 350,
   boss_chef: 450, boss_palhaco: 600, boss_professor: 700, boss_afo: 2000,
+  // Armaduras das novas fases (11-15)
+  boss_clown: 850, boss_hooligan: 950, boss_piloto: 1100,
+  boss_lobo: 1300, boss_dragao_final: 2500,
 };
 
 // Lista canónica de TODAS as armaduras (para a loja mostrar tudo, vendido ou não)
@@ -692,6 +695,7 @@ const TODAS_ARMADURAS = [
   'individualidade','limitless',
   'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
   'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
+  'boss_clown','boss_hooligan','boss_piloto','boss_lobo','boss_dragao_final',
 ];
 // (pré-carregamento dos retratos PNG é feito depois de carregarRetratoArmadura ser definida — ver mais abaixo)
 
@@ -736,6 +740,11 @@ const FALA_BOSS = {
   'PALHAÇO DO MAL': 'VAMOS DIVERTIR-NOS... ATÉ MORRERES!',
   'PROFESSOR FANTASMA': 'REPROVADO. PERMANENTEMENTE.',
   'ALL FOR ONE': 'EU SOU O VERDADEIRO MAL. PREPARA-TE.',
+  'PALHAÇO SOMBRIO': 'O CIRCO COMEÇA... E TU ÉS O ESPECTÁCULO!',
+  'HOOLIGAN GIGANTE': 'GOLO! NA TUA CARA, HERÓI!',
+  'PILOTO RENEGADO': 'PREPARA-TE PARA A DESCOLAGEM... PARA O OUTRO LADO!',
+  'LOBO DAS SOMBRAS': 'A FLORESTA ENGOLE-TE INTEIRO!',
+  'DRAGÃO FINAL': 'EU SOU O FIM DE TUDO. NEM AS NUVENS TE SALVAM!',
 };
 
 /* ============================================================
@@ -786,6 +795,11 @@ const COLOR_GRADE = {
   8: { cor: 'rgba(255, 140, 0, 0.12)' },   // McDonald's - laranja sat
   9: { cor: 'rgba(60, 140, 60, 0.10)' },   // Escola - verde-quadro
   10:{ cor: 'rgba(160, 0, 220, 0.20)' },   // Base AFO - roxo intenso
+  11:{ cor: 'rgba(255, 80, 200, 0.16)' },  // Parque Diversões - rosa neon
+  12:{ cor: 'rgba(60, 200, 80, 0.12)' },   // Estádio - verde-relva intenso
+  13:{ cor: 'rgba(200, 220, 255, 0.10)' }, // Aeroporto - azul céu pálido
+  14:{ cor: 'rgba(20, 80, 40, 0.20)' },    // Floresta - verde profundo
+  15:{ cor: 'rgba(180, 180, 255, 0.18)' }, // Castelo Nuvens - azul-celeste
 };
 
 // Imagens-retrato das armaduras (carregam de assets/armaduras/<id>.png).
@@ -826,7 +840,37 @@ const NOME_ARMADURA = {
   boss_shigaraki: 'SHIGARAKI', boss_glitch: 'GLITCH',
   boss_chef: 'CHEF MUTANTE', boss_palhaco: 'PALHAÇO DO MAL',
   boss_professor: 'PROFESSOR FANTASMA', boss_afo: 'ALL FOR ONE',
+  // Bosses das novas fases (11-15)
+  boss_clown: 'PALHAÇO SOMBRIO', boss_hooligan: 'HOOLIGAN GIGANTE',
+  boss_piloto: 'PILOTO RENEGADO', boss_lobo: 'LOBO DAS SOMBRAS',
+  boss_dragao_final: 'DRAGÃO FINAL',
 };
+
+/* ============================================================
+   SUB-AMBIENTES: cada fase tem 5 cenas internas (sala, cozinha...)
+   em vez de só "sub-fase 1.1, 1.2..." mostra-se o nome do local.
+   Index: SUB_AMBIENTES[faseIdx][subIdx] (ambos 0-based).
+   ============================================================ */
+const SUB_AMBIENTES = [
+  ['SALA', 'COZINHA', 'QUARTO PAIS', 'QUARTO LUÍS', 'JARDIM'],                 // 1 Casa
+  ['GARAGEM', 'DORMITÓRIO', 'SALA TREINO', 'TELHADO', 'INCÊNDIO RUA'],         // 2 Bombeiros
+  ['RECEPÇÃO', 'CELAS', 'INTERROGATÓRIO', 'ARMARIA', 'PÁTIO'],                 // 3 Polícia
+  ['RECEPÇÃO', 'ENFERMARIA', 'BLOCO OP.', 'UCI', 'HELIPORTO'],                 // 4 Hospital
+  ['ENTRADA', 'TALHO', 'PADARIA', 'FRIGORÍFICOS', 'ARMAZÉM'],                  // 5 Supermercado
+  ['ENTRADA', 'PINBALL', 'ARCADE', 'KARAOKE', 'VIP'],                          // 6 Fliperama
+  ['SALÃO', 'COZINHA', 'ADEGA', 'ESPLANADA', 'COZINHA CHEF'],                  // 7 Restaurante
+  ['BALCÃO', 'COZINHA', 'DRIVE-THRU', 'PLAYGROUND', 'CÂMARA FRIA'],            // 8 McDonald's
+  ['RECREIO', 'SALA AULA', 'BIBLIOTECA', 'GINÁSIO', 'SÓTÃO'],                  // 9 Escola
+  ['ENTRADA', 'LABORATÓRIO', 'SALA AFO', 'ARENA', 'TRONO'],                    // 10 Base Vilões
+  ['BILHETEIRA', 'CARROSSEL', 'CASA ESPELHOS', 'MONTANHA-RUSSA', 'RODA GIGANTE'], // 11 Parque
+  ['BILHETEIRA', 'BALNEÁRIOS', 'BANCADAS', 'RELVA', 'TÚNEL'],                  // 12 Estádio
+  ['CHECK-IN', 'DUTY FREE', 'PISTA', 'HANGAR', 'TORRE CONTROLO'],              // 13 Aeroporto
+  ['TRILHO', 'LAGO', 'CLAREIRA', 'CAVERNA', 'ÁRVORE ANCIÃ'],                   // 14 Floresta
+  ['PONTE', 'SALÃO TRONO', 'TORRE NORTE', 'TORRE SUL', 'TOPO CÉU'],            // 15 Castelo
+];
+function nomeSubAmbiente(faseIdx, subIdx) {
+  return (SUB_AMBIENTES[faseIdx] && SUB_AMBIENTES[faseIdx][subIdx]) || ('CENA ' + (subIdx + 1));
+}
 
 function tremerEcra(intensidade) { if (intensidade > shake) shake = intensidade; }
 
@@ -1692,6 +1736,108 @@ const FASES = [
     ],
     plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2300, 100)],
     recompensa: 'boss_afo',
+  },
+  /* ===== NOVAS FASES (11-15) — pós-AFO arc ===== */
+  {
+    nome: 'PARQUE DE DIVERSÕES', numero: 11, musica: 'fase11_parque', largura: 2700,
+    desenharCenario: () => desenharCenarioParque(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'O AFO CAIU... MAS UM PALHAÇO MUITO PIOR ESPERA-TE NA RODA GIGANTE!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 9, '#f4a'),
+      criarVoador(650, '#fc0'),
+      criarMonstro(900, 9, '#f4a'),
+      criarVoador(1150, '#0ff'),
+      criarMonstro(1350, 10, '#f4a'),
+      criarVoador(1550, '#fc0'),
+      criarMonstro(1750, 10, '#f4a'),
+      criarVoador(1950, '#0ff'),
+      criarMonstro(2150, 11, '#f4a'),
+      criarDragao(2450, 28, '#a08', 'PALHAÇO SOMBRIO'),
+    ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 110), P(1900, 180, 100), P(2300, 100)],
+    recompensa: 'boss_clown',
+  },
+  {
+    nome: 'ESTÁDIO DE FUTEBOL', numero: 12, musica: 'fase12_estadio', largura: 2700,
+    desenharCenario: () => desenharCenarioEstadio(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'NEM COM TODOS OS GOLOS DO MUNDO ESCAPAS DESTE HOOLIGAN!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 10, '#0a4'),
+      criarMonstro(650, 10, '#0a4'),
+      criarVoador(900, '#fff'),
+      criarMonstro(1100, 11, '#0a4'),
+      criarVoador(1350, '#fc0'),
+      criarMonstro(1550, 11, '#0a4'),
+      criarMonstro(1750, 12, '#0a4'),
+      criarVoador(1950, '#fff'),
+      criarMonstro(2150, 12, '#0a4'),
+      criarDragao(2450, 30, '#063', 'HOOLIGAN GIGANTE'),
+    ],
+    plataformas: [P(550, 100), P(1000, 150, 100), P(1450, 100), P(1900, 150, 100), P(2300, 110)],
+    recompensa: 'boss_hooligan',
+  },
+  {
+    nome: 'AEROPORTO', numero: 13, musica: 'fase13_aeroporto', largura: 2800,
+    desenharCenario: () => desenharCenarioAeroporto(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DESCONHECIDA',
+      fala:'A ÚLTIMA DESCOLAGEM... É A TUA, MIDORIYA!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 11, '#88a'),
+      criarVoador(650, '#aaf'),
+      criarMonstro(850, 11, '#88a'),
+      criarVoador(1100, '#aaf'),
+      criarMonstro(1300, 12, '#88a'),
+      criarVoador(1550, '#fff'),
+      criarMonstro(1750, 12, '#88a'),
+      criarVoador(1950, '#aaf'),
+      criarMonstro(2150, 13, '#88a'),
+      criarDragao(2550, 32, '#446', 'PILOTO RENEGADO'),
+    ],
+    plataformas: [P(550, 110), P(1000, 160, 100), P(1450, 110), P(1900, 200, 110), P(2350, 130)],
+    recompensa: 'boss_piloto',
+  },
+  {
+    nome: 'FLORESTA ENCANTADA', numero: 14, musica: 'fase14_floresta', largura: 2900,
+    desenharCenario: () => desenharCenarioFloresta(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ ANTIGA',
+      fala:'NESTAS ÁRVORES, OS HERÓIS PERDEM-SE PARA SEMPRE...' },
+    spawnInimigos: () => [
+      criarMonstro(450, 12, '#063'),
+      criarVoador(650, '#0c4'),
+      criarMonstro(900, 12, '#063'),
+      criarVoador(1150, '#0c4'),
+      criarMonstro(1350, 13, '#063'),
+      criarVoador(1550, '#0c4'),
+      criarMonstro(1750, 13, '#063'),
+      criarVoador(1950, '#0c4'),
+      criarMonstro(2200, 14, '#063'),
+      criarDragao(2650, 34, '#020', 'LOBO DAS SOMBRAS'),
+    ],
+    plataformas: [P(500, 100), P(900, 160, 100), P(1350, 110), P(1800, 200, 110), P(2300, 130)],
+    recompensa: 'boss_lobo',
+  },
+  {
+    nome: 'CASTELO NAS NUVENS', numero: 15, musica: 'fase15_castelo', largura: 3000,
+    desenharCenario: () => desenharCenarioCastelo(),
+    cutscene: { ator:'afo', nomeAtor:'VOZ ANCESTRAL',
+      fala:'CHEGASTE AO TOPO. AGORA ENFRENTAS A ÚLTIMA AMEAÇA: O DRAGÃO FINAL!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 13, '#88f'),
+      criarVoador(650, '#fff'),
+      criarMonstro(850, 13, '#88f'),
+      criarVoador(1050, '#fff'),
+      criarMonstro(1250, 14, '#88f'),
+      criarVoador(1450, '#fff'),
+      criarMonstro(1650, 14, '#88f'),
+      criarVoador(1850, '#fff'),
+      criarMonstro(2050, 15, '#88f'),
+      criarVoador(2250, '#fff'),
+      criarDragao(2750, 40, '#80f', 'DRAGÃO FINAL'),
+    ],
+    plataformas: [P(500, 120), P(950, 180, 100), P(1400, 120), P(1850, 220, 110), P(2400, 150)],
+    recompensa: 'boss_dragao_final',
     finalDoJogo: true,
   },
 ];
@@ -1716,7 +1862,7 @@ function iniciarFase(idx) {
       });
     }
     // Voador a guardar o tesouro (cor temática por fase)
-    const corVoador = ['#fc0','#f80','#48f','#fff','#f4a','#0ff','#fc0','#fc0','#fff','#f0f'][idx] || '#fc0';
+    const corVoador = ['#fc0','#f80','#48f','#fff','#f4a','#0ff','#fc0','#fc0','#fff','#f0f','#f4a','#0c4','#aaf','#0c4','#88f'][idx] || '#fc0';
     const guardiao = criarVoador(ptopo.x + ptopo.w/2 - 17, corVoador);
     guardiao.yBase = ptopo.y - 60; // patrulha acima da plataforma
     guardiao.y = guardiao.yBase;
@@ -2840,6 +2986,8 @@ function atualizarJogo() {
   ctx.save();
   ctx.translate(sx, sy);
   FASES[faseAtual].desenharCenario();
+  // Props do sub-ambiente (sala, cozinha, etc) — sobrepostos ao cenário base
+  desenharPropsSubAmbiente();
   ctx.save();
   ctx.translate(-Math.floor(camera.x), 0);
   desenharSombraHeroi();
@@ -2885,7 +3033,7 @@ function atualizarJogo() {
     ctx.fillRect(0, 0, W, H);
   }
   // (vinheta agora renderizada antes do HUD com intensidade dinâmica)
-  // Overlay de transição de sub-fase (1.1 → 1.2 etc)
+  // Overlay de transição de sub-ambiente (SALA → COZINHA, etc)
   if (subFaseTransicaoTimer > 0) {
     const tt = subFaseTransicaoTimer / 90;
     ctx.fillStyle = `rgba(255,200,40,${tt * 0.25})`;
@@ -2895,14 +3043,30 @@ function atualizarJogo() {
     ctx.translate(W/2, H/2);
     ctx.scale(escala, escala);
     ctx.globalAlpha = Math.min(1, tt * 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.7)';
-    ctx.fillRect(-200, -28, 400, 56);
-    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 3;
-    ctx.strokeRect(-200, -28, 400, 56);
-    ctx.fillStyle = '#fc0';
-    ctx.font = 'bold 30px Courier New';
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(-280, -38, 560, 76);
+    const corBox = (subFase >= 4) ? '#f44' : '#fc0';
+    ctx.strokeStyle = corBox; ctx.lineWidth = 3;
+    ctx.strokeRect(-280, -38, 560, 76);
+    ctx.fillStyle = corBox;
     ctx.textAlign = 'center';
-    ctx.fillText('★ FASE ' + FASES[faseAtual].numero + '.' + (subFase + 1) + ' ★', 0, 10);
+    if (subFase >= 4) {
+      // sub-ambiente final = boss
+      ctx.font = 'bold 28px Courier New';
+      ctx.fillText('⚔ ' + nomeSubAmbiente(faseAtual, subFase) + ' ⚔', 0, -2);
+      ctx.font = 'bold 14px Courier New';
+      ctx.fillStyle = '#fff';
+      ctx.fillText('— BOSS —', 0, 22);
+    } else {
+      const ambAnterior = subFase > 0 ? nomeSubAmbiente(faseAtual, subFase - 1) : '...';
+      const ambActual = nomeSubAmbiente(faseAtual, subFase);
+      ctx.font = 'bold 16px Courier New';
+      ctx.fillStyle = '#aaa';
+      ctx.fillText(ambAnterior, 0, -10);
+      ctx.font = 'bold 26px Courier New';
+      ctx.fillStyle = corBox;
+      ctx.fillText('🚪  ' + ambActual, 0, 22);
+    }
     ctx.restore();
   }
   // Cutscene de troca de armadura: brilho dourado + nome grande
@@ -3583,6 +3747,344 @@ function desenharCenarioBase() {
   desenharChao('#1a0020', '#080010');
 }
 
+/* ---- FASE 11: PARQUE DE DIVERSÕES ---- */
+function desenharCenarioParque() {
+  if (desenharFundoFase('11-parque')) return;
+  // Céu nocturno rosa-roxo
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#1a0030'); grd.addColorStop(1, '#600040');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Roda gigante ao fundo (paralaxe lento)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.3), 0);
+  for (let rx = 200; rx < 4000; rx += 1200) {
+    const cx = rx, cy = 180, r = 90;
+    ctx.strokeStyle = '#fc0'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+    for (let a = 0; a < 8; a++) {
+      const ang = a*Math.PI/4 + tempo*0.005;
+      ctx.fillStyle = ['#f4a','#0ff','#fc0','#fff'][a%4];
+      ctx.fillRect(cx + Math.cos(ang)*r - 6, cy + Math.sin(ang)*r - 6, 12, 12);
+    }
+  }
+  ctx.restore();
+  // Néons na parede
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = (Math.floor(tempo/8)%2) ? '#f4a' : '#0ff';
+    ctx.fillRect(jx + 20, 320, 80, 8);
+    ctx.fillStyle = '#fc0';
+    ctx.fillRect(jx + 50, 280, 4, 60);
+  }, 240, 0.6);
+  desenharChao('#3a1040', '#1a0020');
+}
+
+/* ---- FASE 12: ESTÁDIO ---- */
+function desenharCenarioEstadio() {
+  if (desenharFundoFase('12-estadio')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#0a3a1a'); grd.addColorStop(1, '#1a6a3a');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Bancadas (linhas horizontais com pontos = espectadores)
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    for (let row = 0; row < 5; row++) {
+      ctx.fillStyle = '#222'; ctx.fillRect(jx, 60 + row*40, 200, 24);
+      for (let p = 0; p < 8; p++) {
+        ctx.fillStyle = ['#f44','#48f','#fc0','#fff','#0a4'][(p+row)%5];
+        ctx.fillRect(jx + 8 + p*24, 64 + row*40, 8, 12);
+      }
+    }
+  }, 220, 0.5);
+  // Holofotes
+  ctx.fillStyle = '#fff';
+  for (let hx = 100; hx < W; hx += 300) {
+    ctx.beginPath();
+    ctx.moveTo(hx, 0); ctx.lineTo(hx-30, CHAO_Y); ctx.lineTo(hx+30, CHAO_Y);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,200,0.06)';
+    ctx.fill();
+  }
+  // Linhas de relva (chão verde)
+  desenharChao('#0a4a20', '#063a18');
+  // Riscas brancas no campo
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  ctx.fillStyle = '#fff';
+  for (let lx = 200; lx < FASES[faseAtual].largura; lx += 600) {
+    ctx.fillRect(lx, CHAO_Y + 4, 4, 60);
+  }
+  ctx.restore();
+}
+
+/* ---- FASE 13: AEROPORTO ---- */
+function desenharCenarioAeroporto() {
+  if (desenharFundoFase('13-aeroporto')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#88aac0'); grd.addColorStop(1, '#cce0f0');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Avião distante (paralaxe lentíssimo)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.15), 0);
+  ctx.fillStyle = '#fff';
+  for (let ax = 100; ax < 4000; ax += 800) {
+    ctx.fillRect(ax, 80, 60, 8);
+    ctx.fillRect(ax + 25, 70, 12, 6);
+    ctx.fillRect(ax + 5, 84, 50, 4);
+  }
+  ctx.restore();
+  // Torre de controlo (paralaxe médio)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.5), 0);
+  for (let tx = 300; tx < 4000; tx += 900) {
+    ctx.fillStyle = '#888'; ctx.fillRect(tx, 180, 40, 200);
+    ctx.fillStyle = '#444'; ctx.fillRect(tx - 10, 160, 60, 30);
+    ctx.fillStyle = '#0ff'; ctx.fillRect(tx - 5, 165, 50, 15);
+  }
+  ctx.restore();
+  // Pista (chão cinzento com faixas amarelas)
+  desenharChao('#444', '#222', 60);
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  ctx.fillStyle = '#fc0';
+  for (let lx = 100; lx < FASES[faseAtual].largura; lx += 80) {
+    ctx.fillRect(lx, CHAO_Y + 30, 40, 6);
+  }
+  ctx.restore();
+}
+
+/* ---- FASE 14: FLORESTA ---- */
+function desenharCenarioFloresta() {
+  if (desenharFundoFase('14-floresta')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#0a2010'); grd.addColorStop(1, '#1a4020');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Árvores em paralaxe (3 camadas)
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#021008';
+    ctx.fillRect(jx + 20, 200, 18, 200);
+    ctx.beginPath();
+    ctx.moveTo(jx, 240); ctx.lineTo(jx + 28, 100); ctx.lineTo(jx + 56, 240);
+    ctx.closePath(); ctx.fill();
+  }, 140, 0.3);
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#063a18';
+    ctx.fillRect(jx + 12, 240, 14, 160);
+    ctx.beginPath();
+    ctx.moveTo(jx - 5, 270); ctx.lineTo(jx + 19, 150); ctx.lineTo(jx + 45, 270);
+    ctx.closePath(); ctx.fill();
+  }, 180, 0.6);
+  // Cogumelos (chão)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  for (let mx = 150; mx < FASES[faseAtual].largura; mx += 220) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(mx, CHAO_Y - 18, 6, 18);
+    ctx.fillStyle = '#f44';
+    ctx.beginPath(); ctx.arc(mx + 3, CHAO_Y - 18, 10, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(mx - 1, CHAO_Y - 22, 2, 2);
+    ctx.fillRect(mx + 4, CHAO_Y - 19, 2, 2);
+  }
+  ctx.restore();
+  desenharChao('#1a3010', '#0a2008');
+}
+
+/* ---- FASE 15: CASTELO NAS NUVENS ---- */
+function desenharCenarioCastelo() {
+  if (desenharFundoFase('15-castelo')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#80a0e0'); grd.addColorStop(1, '#e0d0ff');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Nuvens (paralaxe lento)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.2), 0);
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
+  for (let cx = 50; cx < 4000; cx += 280) {
+    const yy = 80 + ((cx*7) % 120);
+    ctx.beginPath();
+    ctx.arc(cx, yy, 30, 0, Math.PI*2);
+    ctx.arc(cx + 25, yy, 24, 0, Math.PI*2);
+    ctx.arc(cx + 50, yy, 30, 0, Math.PI*2);
+    ctx.arc(cx + 25, yy - 18, 22, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+  // Torres do castelo (paralaxe médio)
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#aab8d0';
+    ctx.fillRect(jx, 160, 60, 240);
+    // Ameias
+    ctx.fillStyle = '#88a0c0';
+    for (let a = 0; a < 4; a++) ctx.fillRect(jx + a*16, 150, 10, 15);
+    // Janela
+    ctx.fillStyle = '#000';
+    ctx.fillRect(jx + 22, 220, 16, 30);
+    // Bandeirinha
+    ctx.fillStyle = '#f44';
+    ctx.fillRect(jx + 28, 110, 4, 50);
+    ctx.beginPath();
+    ctx.moveTo(jx + 32, 110); ctx.lineTo(jx + 60, 120); ctx.lineTo(jx + 32, 130);
+    ctx.closePath(); ctx.fill();
+  }, 320, 0.55);
+  // Chão de pedra com brilho
+  desenharChao('#9090b8', '#606080');
+}
+
+/* ============================================================
+   PROPS DOS SUB-AMBIENTES
+   Desenha props decorativos sobrepostos ao cenário base, conforme
+   o sub-ambiente actual (subFase 0..4 dentro de faseAtual).
+   Cada prop é geométrico (sem PNG) e respeita paralaxe completo.
+   ============================================================ */
+function desenharPropsSubAmbiente() {
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x), 0);
+  const fi = faseAtual, si = subFase;
+  const largura = FASES[fi].largura;
+  const baseY = CHAO_Y;
+  // Helper local: prop simples repetido
+  const repe = (passo, fn) => {
+    for (let x = 200; x < largura; x += passo) fn(x);
+  };
+  // ===== FASE 1 CASA =====
+  if (fi === 0) {
+    if (si === 0) { // SALA
+      ctx.fillStyle = '#6a3020'; ctx.fillRect(420, baseY-60, 160, 60); // sofá
+      ctx.fillStyle = '#a44'; ctx.fillRect(420, baseY-80, 160, 22);
+      ctx.fillStyle = '#222'; ctx.fillRect(900, baseY-90, 80, 60); ctx.fillStyle = '#0af'; ctx.fillRect(906, baseY-84, 68, 48); // TV
+    } else if (si === 1) { // COZINHA
+      ctx.fillStyle = '#ddd'; ctx.fillRect(400, baseY-100, 100, 100); // frigorífico
+      ctx.fillStyle = '#888'; ctx.fillRect(404, baseY-50, 6, 4);
+      ctx.fillStyle = '#444'; ctx.fillRect(700, baseY-60, 200, 60); ctx.fillStyle = '#666'; // bancada
+      ctx.fillRect(720, baseY-58, 60, 30);
+    } else if (si === 2) { // QUARTO PAIS
+      ctx.fillStyle = '#642'; ctx.fillRect(450, baseY-50, 220, 50); // cama dupla
+      ctx.fillStyle = '#fff'; ctx.fillRect(450, baseY-70, 220, 22);
+      ctx.fillStyle = '#a44'; ctx.fillRect(530, baseY-90, 60, 22); // almofadas
+    } else if (si === 3) { // QUARTO LUÍS
+      ctx.fillStyle = '#48f'; ctx.fillRect(450, baseY-50, 140, 50); // cama
+      ctx.fillStyle = '#fc0'; ctx.fillRect(450, baseY-70, 140, 22);
+      ctx.fillStyle = '#f44'; ctx.fillRect(750, baseY-80, 80, 80); // brinquedos cubo
+      ctx.fillStyle = '#0a4'; ctx.fillRect(870, baseY-50, 50, 50);
+    } else { // JARDIM
+      ctx.fillStyle = '#0a4'; ctx.fillRect(0, baseY, largura, 4); // grama acima do chão
+      repe(180, x => { ctx.fillStyle = '#063'; ctx.fillRect(x, baseY-20, 12, 20); ctx.fillRect(x+24, baseY-30, 12, 30); });
+      repe(280, x => { ctx.fillStyle = '#a22'; ctx.beginPath(); ctx.arc(x+200, baseY-40, 16, 0, Math.PI*2); ctx.fill(); }); // arbustos com flor
+    }
+  }
+  // ===== FASE 2 BOMBEIROS =====
+  else if (fi === 1) {
+    if (si === 0) { repe(300, x => { ctx.fillStyle = '#a22'; ctx.fillRect(x, baseY-90, 140, 90); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(x+30, baseY, 18, 0, Math.PI*2); ctx.arc(x+110, baseY, 18, 0, Math.PI*2); ctx.fill(); }); } // GARAGEM camiões
+    else if (si === 1) { repe(220, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-90, 80, 22); ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-68, 80, 12); ctx.fillStyle = '#fc0'; ctx.fillRect(x+30, baseY-86, 20, 6); }); } // DORMITÓRIO beliches
+    else if (si === 2) { repe(260, x => { ctx.fillStyle = '#444'; ctx.fillRect(x, baseY-120, 24, 120); ctx.fillStyle = '#fc0'; ctx.fillRect(x-10, baseY-12, 44, 12); }); } // SALA TREINO postes
+    else if (si === 3) { repe(180, x => { ctx.fillStyle = '#a22'; ctx.fillRect(x, baseY-30, 80, 12); ctx.fillStyle = '#444'; ctx.fillRect(x+30, baseY-60, 20, 30); }); } // TELHADO chaminés
+    else { ctx.fillStyle = 'rgba(255,80,0,0.4)'; for (let i = 0; i < 8; i++) ctx.fillRect(300 + i*350, baseY-200, 100, 200); repe(220, x => { ctx.fillStyle = '#f80'; ctx.fillRect(x, baseY-20, 30, 20); }); } // INCÊNDIO RUA chamas
+  }
+  // ===== FASE 3 POLÍCIA =====
+  else if (fi === 2) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#246'; ctx.fillRect(x, baseY-80, 100, 80); ctx.fillStyle = '#fc0'; ctx.fillRect(x+40, baseY-50, 20, 20); }); } // RECEPÇÃO balcões
+    else if (si === 1) { repe(160, x => { ctx.fillStyle = '#888'; for (let b = 0; b < 5; b++) ctx.fillRect(x + b*12, baseY-100, 4, 100); ctx.fillStyle = '#444'; ctx.fillRect(x, baseY-100, 60, 6); }); } // CELAS grades
+    else if (si === 2) { repe(260, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-50, 80, 50); ctx.fillStyle = '#fff'; ctx.fillRect(x+10, baseY-40, 60, 6); }); ctx.fillStyle = 'rgba(255,255,150,0.1)'; ctx.fillRect(0, 100, largura, 40); } // INTERROGATÓRIO mesa+luz
+    else if (si === 3) { repe(180, x => { ctx.fillStyle = '#444'; ctx.fillRect(x, baseY-100, 50, 100); ctx.fillStyle = '#888'; ctx.fillRect(x+10, baseY-90, 30, 12); ctx.fillStyle = '#aaa'; ctx.fillRect(x+18, baseY-70, 14, 50); }); } // ARMARIA armas
+    else { repe(140, x => { ctx.fillStyle = '#888'; for (let b = 0; b < 8; b++) ctx.fillRect(x + b*8, 60, 4, CHAO_Y-60); }); } // PÁTIO grades altas
+  }
+  // ===== FASE 4 HOSPITAL =====
+  else if (fi === 3) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-60, 80, 60); ctx.fillStyle = '#0c4'; ctx.fillRect(x+30, baseY-40, 20, 4); ctx.fillRect(x+38, baseY-50, 4, 24); }); } // RECEPÇÃO + cruz verde
+    else if (si === 1) { repe(220, x => { ctx.fillStyle = '#eef'; ctx.fillRect(x, baseY-80, 140, 30); ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-50, 8, 50); ctx.fillRect(x+132, baseY-50, 8, 50); }); } // ENFERMARIA camas
+    else if (si === 2) { repe(260, x => { ctx.fillStyle = '#cce'; ctx.fillRect(x, baseY-90, 100, 60); ctx.fillStyle = '#0a4'; ctx.fillRect(x+10, baseY-80, 80, 30); ctx.fillStyle = '#f44'; ctx.fillRect(x+20, baseY-70, 8, 8); }); } // BLOCO OP. monitores
+    else if (si === 3) { repe(220, x => { ctx.fillStyle = '#88a'; ctx.fillRect(x, baseY-70, 120, 30); ctx.fillStyle = '#0ff'; ctx.fillRect(x+10, baseY-65, 100, 6); for (let p = 0; p < 5; p++) ctx.fillRect(x+15+p*20, baseY-55, 4, 12); }); } // UCI máquinas
+    else { ctx.fillStyle = '#222'; ctx.fillRect(0, baseY-4, largura, 4); repe(380, x => { ctx.fillStyle = '#fc0'; ctx.beginPath(); ctx.arc(x+150, baseY-20, 30, 0, Math.PI*2); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.fillRect(x+148, baseY-50, 4, 30); }); } // HELIPORTO H pintado
+  }
+  // ===== FASE 5 SUPERMERCADO =====
+  else if (fi === 4) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-60, 100, 60); ctx.fillStyle = '#222'; ctx.fillRect(x+10, baseY-40, 80, 6); }); } // ENTRADA caixas
+    else if (si === 1) { repe(200, x => { ctx.fillStyle = '#fcc'; ctx.fillRect(x, baseY-50, 80, 50); ctx.fillStyle = '#a44'; ctx.fillRect(x+10, baseY-40, 60, 30); }); } // TALHO carne
+    else if (si === 2) { repe(180, x => { ctx.fillStyle = '#c84'; ctx.fillRect(x, baseY-40, 60, 12); ctx.fillRect(x, baseY-55, 60, 12); }); } // PADARIA pães
+    else if (si === 3) { repe(180, x => { ctx.fillStyle = '#cef'; ctx.fillRect(x, baseY-130, 80, 130); ctx.fillStyle = '#fff'; ctx.fillRect(x+5, baseY-125, 70, 6); ctx.fillStyle = '#88f'; ctx.fillRect(x+5, baseY-115, 70, 4); }); } // FRIGORÍFICOS
+    else { repe(180, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-80, 60, 80); ctx.fillStyle = '#a82'; for (let s = 0; s < 4; s++) ctx.fillRect(x+5, baseY-70+s*18, 50, 4); }); } // ARMAZÉM prateleiras
+  }
+  // ===== FASE 6 FLIPERAMA =====
+  else if (fi === 5) {
+    if (si === 0) { repe(220, x => { ctx.fillStyle = '#a4f'; ctx.fillRect(x, baseY-100, 60, 100); ctx.fillStyle = '#0ff'; ctx.fillRect(x+8, baseY-92, 44, 30); ctx.fillStyle = '#fc0'; ctx.fillRect(x+15, baseY-50, 30, 8); }); } // ENTRADA arcades
+    else if (si === 1) { repe(220, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-50, 120, 50); ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(x+60, baseY-50, 8, 0, Math.PI*2); ctx.fill(); }); } // PINBALL mesas
+    else if (si === 2) { repe(140, x => { ctx.fillStyle = (Math.floor(tempo/8)%2)?'#f0f':'#0ff'; ctx.fillRect(x, baseY-110, 50, 110); ctx.fillStyle = '#000'; ctx.fillRect(x+8, baseY-95, 34, 30); }); } // ARCADE filas máquinas
+    else if (si === 3) { repe(280, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-80, 90, 80); ctx.fillStyle = '#f4a'; ctx.fillRect(x+10, baseY-70, 70, 40); ctx.fillStyle = '#fff'; ctx.fillRect(x+38, baseY-30, 14, 30); }); } // KARAOKE microfones
+    else { ctx.fillStyle = 'rgba(160,0,255,0.3)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(220, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-60, 100, 60); ctx.fillStyle = '#000'; ctx.fillRect(x+10, baseY-55, 80, 30); }); } // VIP camarotes
+  }
+  // ===== FASE 7 RESTAURANTE =====
+  else if (fi === 6) {
+    if (si === 0) { repe(220, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-50, 100, 8); ctx.fillStyle = '#642'; ctx.fillRect(x+10, baseY-42, 6, 42); ctx.fillRect(x+84, baseY-42, 6, 42); ctx.fillStyle = '#a44'; ctx.fillRect(x+30, baseY-65, 40, 18); }); } // SALÃO mesas
+    else if (si === 1) { repe(200, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-70, 100, 70); ctx.fillStyle = '#f80'; ctx.fillRect(x+30, baseY-50, 40, 30); ctx.fillStyle = '#fc0'; ctx.fillRect(x+40, baseY-60, 20, 8); }); } // COZINHA fogões
+    else if (si === 2) { repe(160, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-130, 80, 130); for (let b = 0; b < 5; b++) { ctx.fillStyle = '#420'; ctx.fillRect(x+8 + (b%3)*22, baseY-120 + Math.floor(b/3)*40, 16, 30); } }); } // ADEGA garrafas
+    else if (si === 3) { repe(220, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-50, 80, 4); ctx.fillStyle = '#a44'; ctx.fillRect(x-10, baseY-110, 4, 60); ctx.fillStyle = '#0a4'; ctx.fillRect(x-30, baseY-110, 44, 8); }); } // ESPLANADA guarda-sóis
+    else { repe(180, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-90, 60, 90); ctx.fillStyle = '#000'; ctx.fillRect(x+22, baseY-86, 16, 30); ctx.fillStyle = '#f80'; ctx.fillRect(x, baseY-50, 60, 6); }); } // COZINHA CHEF + chamas
+  }
+  // ===== FASE 8 McDONALD'S =====
+  else if (fi === 7) {
+    if (si === 0) { repe(220, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-100, 120, 100); ctx.fillStyle = '#c00'; ctx.fillRect(x+10, baseY-90, 100, 30); ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Courier New'; ctx.fillText('M', x+50, baseY-66); }); } // BALCÃO M dourado
+    else if (si === 1) { repe(180, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-60, 100, 60); ctx.fillStyle = '#f80'; ctx.fillRect(x+10, baseY-50, 80, 20); }); } // COZINHA fritadeiras
+    else if (si === 2) { repe(280, x => { ctx.fillStyle = '#444'; ctx.fillRect(x, baseY-110, 60, 110); ctx.fillStyle = '#fc0'; ctx.fillRect(x-20, baseY-90, 100, 8); ctx.fillStyle = '#c00'; ctx.fillRect(x+10, baseY-80, 40, 30); ctx.fillStyle = '#fff'; ctx.fillText('DT', x+18, baseY-58); }); } // DRIVE-THRU painel
+    else if (si === 3) { repe(220, x => { ctx.fillStyle = '#f80'; ctx.fillRect(x, baseY-30, 50, 30); ctx.fillStyle = '#0a4'; ctx.fillRect(x+5, baseY-90, 8, 60); ctx.fillRect(x+37, baseY-90, 8, 60); ctx.fillRect(x, baseY-95, 50, 8); }); } // PLAYGROUND
+    else { ctx.fillStyle = 'rgba(150,200,255,0.3)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(180, x => { ctx.fillStyle = '#cef'; ctx.fillRect(x, baseY-130, 80, 130); }); } // CÂMARA FRIA
+  }
+  // ===== FASE 9 ESCOLA =====
+  else if (fi === 8) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#888'; for (let b = 0; b < 4; b++) ctx.fillRect(x + b*14, baseY-130, 6, 130); ctx.fillStyle = '#fc0'; ctx.fillRect(x-10, baseY-110, 70, 6); }); } // RECREIO baliza/grades
+    else if (si === 1) { repe(180, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-50, 60, 50); ctx.fillStyle = '#fff'; ctx.fillRect(x+8, baseY-44, 44, 20); }); } // SALA AULA carteiras
+    else if (si === 2) { repe(160, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-150, 80, 150); for (let s = 0; s < 6; s++) { ctx.fillStyle = ['#a44','#48f','#0a4','#fc0'][s%4]; ctx.fillRect(x+5, baseY-140+s*22, 70, 18); } }); } // BIBLIOTECA estantes
+    else if (si === 3) { repe(280, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-30, 80, 8); ctx.fillStyle = '#a44'; ctx.fillRect(x+38, baseY-100, 4, 70); }); ctx.save(); ctx.fillStyle = '#fc0'; ctx.font = 'bold 22px Courier New'; for (let n = 0; n < 5; n++) ctx.fillText('🏀', 200 + n*400, baseY-130); ctx.restore(); } // GINÁSIO bancos
+    else { ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(220, x => { ctx.fillStyle = '#420'; ctx.fillRect(x, baseY-100, 80, 100); ctx.fillStyle = '#642'; ctx.fillRect(x+10, baseY-90, 60, 80); }); } // SÓTÃO baús
+  }
+  // ===== FASE 10 BASE VILÕES =====
+  else if (fi === 9) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#a0f'; ctx.fillRect(x, baseY-100, 30, 100); ctx.fillStyle = '#608'; ctx.fillRect(x-10, baseY-110, 50, 10); }); } // ENTRADA pilares
+    else if (si === 1) { repe(180, x => { ctx.fillStyle = '#0ff'; ctx.fillRect(x, baseY-100, 60, 100); ctx.fillStyle = '#000'; ctx.fillRect(x+10, baseY-90, 40, 60); ctx.fillStyle = '#0f0'; ctx.fillRect(x+15, baseY-80, 30, 30); }); } // LABORATÓRIO tubos
+    else if (si === 2) { repe(220, x => { ctx.fillStyle = '#400'; ctx.fillRect(x, baseY-130, 100, 130); ctx.fillStyle = '#f00'; ctx.fillRect(x+30, baseY-110, 40, 50); }); } // SALA AFO trono
+    else if (si === 3) { repe(140, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-12, 60, 12); }); ctx.fillStyle = 'rgba(255,0,0,0.15)'; ctx.fillRect(0, 0, largura, CHAO_Y); } // ARENA piso
+    else { ctx.fillStyle = '#600'; ctx.fillRect(largura/2 - 80, baseY-160, 160, 160); ctx.fillStyle = '#f00'; ctx.fillRect(largura/2 - 60, baseY-140, 120, 80); ctx.fillStyle = '#fc0'; ctx.beginPath(); ctx.moveTo(largura/2, baseY-160); ctx.lineTo(largura/2 - 30, baseY-200); ctx.lineTo(largura/2 + 30, baseY-200); ctx.closePath(); ctx.fill(); } // TRONO épico
+  }
+  // ===== FASE 11 PARQUE =====
+  else if (fi === 10) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#f4a'; ctx.fillRect(x, baseY-80, 60, 80); ctx.fillStyle = '#fc0'; ctx.fillRect(x-10, baseY-95, 80, 15); }); } // BILHETEIRA cabines
+    else if (si === 1) { repe(220, x => { ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(x+30, baseY-30, 30, 0, Math.PI, true); ctx.fill(); ctx.fillStyle = '#f4a'; for (let h = 0; h < 4; h++) { const ang = h*Math.PI/4 - Math.PI/2 + tempo*0.02; ctx.fillRect(x+30 + Math.cos(ang)*22 - 4, baseY-30 + Math.sin(ang)*22 - 4, 8, 16); } }); } // CARROSSEL cavalos
+    else if (si === 2) { repe(160, x => { ctx.fillStyle = '#cef'; ctx.fillRect(x, baseY-150, 8, 150); ctx.fillStyle = '#fff'; ctx.fillRect(x+1, baseY-148, 6, 6); ctx.fillRect(x+1, baseY-100, 6, 4); }); } // CASA ESPELHOS
+    else if (si === 3) { ctx.strokeStyle = '#a44'; ctx.lineWidth = 6; ctx.beginPath(); for (let x = 0; x <= largura; x += 30) { const y = baseY - 80 - Math.sin(x*0.02)*60; if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); } ctx.stroke(); } // MONTANHA-RUSSA trilho ondulado
+    else { const cx = largura/2, cy = baseY - 200, r = 140; ctx.strokeStyle = '#fc0'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke(); for (let a = 0; a < 12; a++) { const ang = a*Math.PI/6 + tempo*0.01; ctx.fillStyle = ['#f4a','#0ff','#fc0','#fff'][a%4]; ctx.fillRect(cx + Math.cos(ang)*r - 10, cy + Math.sin(ang)*r - 10, 20, 20); } } // RODA GIGANTE
+  }
+  // ===== FASE 12 ESTÁDIO =====
+  else if (fi === 11) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-80, 80, 80); ctx.fillStyle = '#0a4'; ctx.fillRect(x+10, baseY-50, 60, 30); }); } // BILHETEIRA
+    else if (si === 1) { repe(200, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-130, 60, 130); ctx.fillStyle = '#48f'; for (let r = 0; r < 5; r++) ctx.fillRect(x+5, baseY-120+r*24, 50, 18); }); } // BALNEÁRIOS cacifos
+    else if (si === 2) { for (let row = 0; row < 6; row++) { for (let x = 200; x < largura; x += 20) { ctx.fillStyle = ['#f44','#48f','#fc0','#fff','#0a4'][(row+x)%5 | 0]; ctx.fillRect(x, baseY-200+row*30, 16, 24); } } } // BANCADAS público
+    else if (si === 3) { ctx.fillStyle = '#0a4'; ctx.fillRect(0, baseY-2, largura, 4); repe(420, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-90, 80, 4); ctx.fillRect(x, baseY-90, 4, 90); ctx.fillRect(x+76, baseY-90, 4, 90); ctx.beginPath(); ctx.moveTo(x+40, baseY-30); ctx.arc(x+40, baseY-30, 30, 0, Math.PI*2); ctx.stroke(); }); } // RELVA balizas
+    else { ctx.fillStyle = '#222'; ctx.fillRect(0, 0, largura, CHAO_Y); ctx.fillStyle = '#fc0'; for (let lx = 100; lx < largura; lx += 60) ctx.fillRect(lx, baseY-40, 4, 40); } // TÚNEL escuro com luzes
+  }
+  // ===== FASE 13 AEROPORTO =====
+  else if (fi === 12) {
+    if (si === 0) { repe(220, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-90, 100, 90); ctx.fillStyle = '#0ff'; ctx.fillRect(x+10, baseY-80, 80, 30); }); } // CHECK-IN balcões
+    else if (si === 1) { repe(180, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-70, 80, 70); ctx.fillStyle = '#000'; ctx.fillRect(x+10, baseY-60, 60, 20); ctx.fillStyle = '#f44'; ctx.fillRect(x+15, baseY-30, 50, 20); }); } // DUTY FREE lojas
+    else if (si === 2) { ctx.fillStyle = '#444'; ctx.fillRect(0, baseY-3, largura, 3); ctx.fillStyle = '#fc0'; for (let lx = 100; lx < largura; lx += 80) ctx.fillRect(lx, baseY+30, 40, 6); repe(420, x => { ctx.fillStyle = '#fff'; ctx.fillRect(x, baseY-100, 200, 16); ctx.fillRect(x+90, baseY-90, 20, 8); ctx.beginPath(); ctx.moveTo(x+90, baseY-100); ctx.lineTo(x+100, baseY-130); ctx.lineTo(x+110, baseY-100); ctx.closePath(); ctx.fill(); }); } // PISTA aviões
+    else if (si === 3) { repe(380, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-180, 240, 180); ctx.fillStyle = '#222'; ctx.fillRect(x+20, baseY-170, 200, 100); ctx.fillStyle = '#fff'; ctx.fillRect(x+30, baseY-160, 60, 20); ctx.beginPath(); ctx.moveTo(x+30, baseY-160); ctx.lineTo(x+60, baseY-180); ctx.lineTo(x+90, baseY-160); ctx.closePath(); ctx.fill(); }); } // HANGAR avião
+    else { repe(280, x => { ctx.fillStyle = '#888'; ctx.fillRect(x, baseY-200, 50, 200); ctx.fillStyle = '#0ff'; ctx.fillRect(x-10, baseY-220, 70, 30); }); } // TORRE CONTROLO
+  }
+  // ===== FASE 14 FLORESTA =====
+  else if (fi === 13) {
+    if (si === 0) { repe(140, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-220, 24, 220); ctx.fillStyle = '#0a4'; ctx.beginPath(); ctx.moveTo(x-20, baseY-190); ctx.lineTo(x+12, baseY-280); ctx.lineTo(x+44, baseY-190); ctx.closePath(); ctx.fill(); }); } // TRILHO árvores densas
+    else if (si === 1) { ctx.fillStyle = '#048'; ctx.fillRect(0, baseY-30, largura, 30); for (let lx = 100; lx < largura; lx += 60) { ctx.fillStyle = '#0ff'; ctx.beginPath(); ctx.arc(lx, baseY-15, 8, 0, Math.PI*2); ctx.fill(); } } // LAGO água
+    else if (si === 2) { repe(280, x => { ctx.fillStyle = '#0a4'; ctx.beginPath(); ctx.arc(x+50, baseY-30, 40, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillRect(x+30, baseY-30, 4, 30); ctx.fillRect(x+70, baseY-30, 4, 30); }); } // CLAREIRA arbustos
+    else if (si === 3) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(180, x => { ctx.fillStyle = '#222'; ctx.beginPath(); ctx.moveTo(x, baseY); ctx.lineTo(x+30, baseY-180); ctx.lineTo(x+60, baseY); ctx.closePath(); ctx.fill(); }); for (let i = 0; i < 6; i++) { ctx.fillStyle = '#fc0'; ctx.fillRect(200 + i*400, baseY-50, 8, 8); } } // CAVERNA estalactites
+    else { const cx = largura/2; ctx.fillStyle = '#642'; ctx.fillRect(cx-30, baseY-280, 60, 280); ctx.fillStyle = '#0a4'; ctx.beginPath(); ctx.arc(cx, baseY-280, 200, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#fc0'; ctx.fillRect(cx-12, baseY-180, 24, 30); } // ÁRVORE ANCIÃ
+  }
+  // ===== FASE 15 CASTELO =====
+  else if (fi === 14) {
+    if (si === 0) { ctx.fillStyle = '#a82'; ctx.fillRect(0, baseY-12, largura, 12); repe(160, x => { ctx.fillStyle = '#642'; ctx.fillRect(x, baseY-12, 4, 12); }); } // PONTE pavimentação
+    else if (si === 1) { repe(280, x => { ctx.fillStyle = '#a44'; ctx.fillRect(x, baseY-150, 80, 150); ctx.fillStyle = '#fc0'; ctx.fillRect(x+30, baseY-120, 20, 30); }); } // SALÃO TRONO trono
+    else if (si === 2) { repe(180, x => { ctx.fillStyle = '#aab8d0'; for (let s = 0; s < 4; s++) ctx.fillRect(x + s*16, baseY-200, 12, 200); ctx.fillStyle = '#444'; ctx.fillRect(x+18, baseY-100, 16, 30); }); } // TORRE NORTE coluna
+    else if (si === 3) { repe(220, x => { ctx.fillStyle = '#88a0c0'; ctx.fillRect(x, baseY-180, 40, 180); ctx.fillStyle = '#aab'; ctx.fillRect(x-5, baseY-190, 50, 12); ctx.fillStyle = '#f44'; ctx.fillRect(x+18, baseY-220, 4, 40); }); } // TORRE SUL
+    else { ctx.fillStyle = 'rgba(180,180,255,0.3)'; ctx.fillRect(0, 0, largura, CHAO_Y); ctx.fillStyle = '#fff'; for (let cx = 100; cx < largura; cx += 220) { const yy = 80 + ((cx*7)%80); ctx.beginPath(); ctx.arc(cx, yy, 30, 0, Math.PI*2); ctx.fill(); } repe(380, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-30, 40, 30); }); } // TOPO CÉU
+  }
+  ctx.restore();
+}
+
 /* ---------- DESENHO: HERÓI ---------- */
 function desenharHeroi() {
   const h = heroi;
@@ -3717,7 +4219,12 @@ function desenharHeroi() {
   else if (h.armadura === 'boss_chef')        { corPernas = '#888';    corTronco = '#fff';    corDetalhe = '#a44'; }
   else if (h.armadura === 'boss_palhaco')     { corPernas = '#400';    corTronco = '#c00';    corDetalhe = '#fc0'; }
   else if (h.armadura === 'boss_professor')   { corPernas = '#000';    corTronco = '#063';    corDetalhe = '#fff'; }
-  else /* boss_afo */                          { corPernas = '#000';    corTronco = '#1a0030'; corDetalhe = '#a0f'; }
+  else if (h.armadura === 'boss_afo')         { corPernas = '#000';    corTronco = '#1a0030'; corDetalhe = '#a0f'; }
+  else if (h.armadura === 'boss_clown')       { corPernas = '#600040'; corTronco = '#a008a';  corDetalhe = '#fc0'; }
+  else if (h.armadura === 'boss_hooligan')    { corPernas = '#020';    corTronco = '#063';    corDetalhe = '#fff'; }
+  else if (h.armadura === 'boss_piloto')      { corPernas = '#224';    corTronco = '#446';    corDetalhe = '#0ff'; }
+  else if (h.armadura === 'boss_lobo')        { corPernas = '#020';    corTronco = '#040';    corDetalhe = '#f00'; }
+  else /* boss_dragao_final */                 { corPernas = '#400';    corTronco = '#80f';    corDetalhe = '#fc0'; }
 
   // Pernas — animação de andar quando se move no chão
   const aMover = (h.vx !== 0) && h.noChao;
@@ -4826,7 +5333,7 @@ function desenharHUD() {
   // Indicador de SUB-FASE (ex: "FASE 1.3")
   ctx.fillStyle = '#fc0';
   ctx.font = 'bold 14px Courier New';
-  ctx.fillText('FASE ' + FASES[faseAtual].numero + '.' + (subFase + 1), 20, 100);
+  ctx.fillText('F' + FASES[faseAtual].numero + ' · ' + nomeSubAmbiente(faseAtual, subFase), 20, 100);
   // Indicador de BOSS off-screen (seta a piscar)
   const bossAtivo = inimigos.find(i => i.chefe);
   if (bossAtivo) {
