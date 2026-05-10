@@ -514,8 +514,9 @@ const heroi = {
   invencivel: 0, // frames de invencibilidade após levar dano
   olhandoDireita: true,
   armadura: 'cavaleiro',
-  // Apenas Cavaleiro desbloqueado de início. As outras compram-se na loja.
-  armadurasDesbloqueadas: ['cavaleiro'],
+  // 7 armaduras gratuitas desde o início (Cavaleiro + Ninja + Robô + 4 Magos elementais).
+  // As restantes (Princesa, Samurai, Elementar, Angelical, Dragão Supremo, anime e boss) compram-se na loja.
+  armadurasDesbloqueadas: ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento'],
   voando: false,             // Angelical e Dragão Supremo: activam com duplo-clique
   ultimoSaltoTime: -100,
   angelicalCounter: 0,       // cicla 3 ataques: pena → chama azul → feixe
@@ -1500,6 +1501,8 @@ let historiaParticulas = []; // partículas decorativas por slide
    ============================================================ */
 // Helper: plataforma. P(x, y, w?, h?) — y é distância do CHÃO (mais alto = menor y).
 function P(x, y, w=120, h=14) { return { x, y: CHAO_Y - y, w, h }; }
+// Helper: escada. E(x, alturaMax, w?) — define zona vertical onde podes subir.
+function E(x, alturaMax, w=30) { return { x, w, yTop: CHAO_Y - alturaMax, yBottom: CHAO_Y }; }
 const FASES = [
   {
     nome: 'CASA', numero: 1, musica: 'fase1_casa',
@@ -1530,7 +1533,8 @@ const FASES = [
       criarVoador(1700, '#f80'),
       criarDragao(1950, 14, '#c40', 'DEMÓNIO DE FOGO'),
     ],
-    plataformas: [P(500, 90, 100), P(900, 140, 110), P(1350, 90), P(1700, 140, 100)],
+    plataformas: [P(500, 90, 100), P(900, 140, 110), P(1350, 90), P(1700, 220, 110)],
+    escadas: [E(800, 220, 28), E(1690, 220, 28)], // escadas verticais nos camiões/postes
     recompensa: 'boss_demonio',
   },
   {
@@ -1700,6 +1704,24 @@ function iniciarFase(idx) {
   subFase = 0; // começa sempre em sub-fase 1.1
   const f = FASES[idx];
   inimigos = escalarInimigos(spawnSubFase(idx, 0), f.numero);
+  // BONUS: spawn de 5 moedas + 1 voador na plataforma mais alta da fase
+  if (f.plataformas && f.plataformas.length > 0) {
+    const ptopo = f.plataformas.reduce((a, b) => a.y < b.y ? a : b);
+    for (let i = 0; i < 5; i++) {
+      pickups.push({
+        tipo:'moeda',
+        x: ptopo.x + 10 + i * 22,
+        y: ptopo.y - 24,
+        w: 18, h: 18, vy: 0, vida: 99999, fase: i*0.4,
+      });
+    }
+    // Voador a guardar o tesouro (cor temática por fase)
+    const corVoador = ['#fc0','#f80','#48f','#fff','#f4a','#0ff','#fc0','#fc0','#fff','#f0f'][idx] || '#fc0';
+    const guardiao = criarVoador(ptopo.x + ptopo.w/2 - 17, corVoador);
+    guardiao.yBase = ptopo.y - 60; // patrulha acima da plataforma
+    guardiao.y = guardiao.yBase;
+    inimigos.push(escalarInimigos([guardiao], f.numero)[0]);
+  }
   heroi.x = 100;
   heroi.y = CHAO_Y - heroi.h;
   heroi.vx = 0; heroi.vy = 0;
@@ -1850,7 +1872,7 @@ function atualizarMenu() {
     nivelNG = 0;
     coins = 0;
     heroi.vidaMax = 6;
-    heroi.armadurasDesbloqueadas = ['cavaleiro'];
+    heroi.armadurasDesbloqueadas = ['cavaleiro','ninja','robo','mago_fogo','mago_gelo','mago_terra','mago_vento'];
     heroi.armadura = 'cavaleiro';
     historiaSlide = 0; historiaIndice = 0; historiaTimer = 0;
     historiaSlideTimer = 0; historiaParticulas = []; historiaFadeOut = 0;
@@ -2364,9 +2386,23 @@ function atualizarJogo() {
   }
 
   // 2. Física do herói (escalada por dtF para ser independente de fps)
-  // Em voo, gravidade desligada.
   const noChaoAntes = heroi.noChao;
-  if (!heroi.voando) heroi.vy += GRAVIDADE * dtF;
+  // ESCADAS: verifica se está dentro de zona de escada
+  const escadasFase = FASES[faseAtual].escadas || [];
+  const naEscada = escadasFase.find(es =>
+    heroi.x + heroi.w > es.x && heroi.x < es.x + es.w &&
+    heroi.y + heroi.h > es.yTop && heroi.y < es.yBottom + 5
+  );
+  const queriaSubir = teclas['ArrowUp'] || teclas['KeyW'];
+  const queriaDescer = teclas['ArrowDown'] || teclas['KeyS'];
+  if (naEscada && (queriaSubir || queriaDescer)) {
+    // Em escada: ignora gravidade + move vertical
+    heroi.vy = queriaSubir ? -3.5 : 3;
+    if (heroi.y < naEscada.yTop) heroi.y = naEscada.yTop; // limite topo
+    heroi.noChao = false;
+  } else if (!heroi.voando) {
+    heroi.vy += GRAVIDADE * dtF;
+  }
   heroi.x += heroi.vx * dtF;
   heroi.y += heroi.vy * dtF;
   // Em voo, limita o tecto (não sai do ecrã pelo topo)
@@ -2967,17 +3003,35 @@ function desenharTrailHeroi() {
 function desenharPlataformas() {
   const plats = FASES[faseAtual].plataformas || [];
   for (const p of plats) {
-    // Plataforma sólida com sombra superior + linha de detalhe
     ctx.fillStyle = '#3a2818';
-    ctx.fillRect(p.x, p.y + 3, p.w, p.h);          // sombra
+    ctx.fillRect(p.x, p.y + 3, p.w, p.h);
     ctx.fillStyle = '#7a5832';
-    ctx.fillRect(p.x, p.y, p.w, p.h - 3);          // base
+    ctx.fillRect(p.x, p.y, p.w, p.h - 3);
     ctx.fillStyle = '#a87a4a';
-    ctx.fillRect(p.x, p.y, p.w, 3);                // topo claro
-    // Pinos metálicos nas extremidades
+    ctx.fillRect(p.x, p.y, p.w, 3);
     ctx.fillStyle = '#fc0';
     ctx.fillRect(p.x + 4, p.y + 2, 3, 3);
     ctx.fillRect(p.x + p.w - 7, p.y + 2, 3, 3);
+  }
+  // Escadas (degraus metálicos verticais)
+  const escs = FASES[faseAtual].escadas || [];
+  for (const es of escs) {
+    // Trilhos laterais
+    ctx.fillStyle = '#888';
+    ctx.fillRect(es.x, es.yTop, 4, es.yBottom - es.yTop);
+    ctx.fillRect(es.x + es.w - 4, es.yTop, 4, es.yBottom - es.yTop);
+    // Degraus
+    ctx.fillStyle = '#aaa';
+    for (let y = es.yTop + 8; y < es.yBottom; y += 14) {
+      ctx.fillRect(es.x + 2, y, es.w - 4, 3);
+    }
+    // Indicador "↑" no topo (a piscar)
+    if (Math.floor(tempo/15) % 2 === 0) {
+      ctx.fillStyle = '#fc0';
+      ctx.font = 'bold 14px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText('↑', es.x + es.w/2, es.yTop - 4);
+    }
   }
 }
 function desenharSombraHeroi() {
