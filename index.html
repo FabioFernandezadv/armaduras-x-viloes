@@ -585,9 +585,13 @@ function criarShigarakiBoss(x) {
 // Tem cor temática da fase mas NÃO é `chefe: true` (não dispara vitória da fase).
 function criarSubBoss(x, faseIdx, subIdx) {
   const corPorFase = ['#7a2a8a','#c40','#048','#286','#444',
-                      '#608','#822','#c00','#063','#1a0030'];
+                      '#608','#822','#c00','#063','#1a0030',
+                      '#a08','#063','#446','#020','#80f',
+                      '#f60','#804080','#00a060','#a00050','#204080'];
   const nomePorFase = ['CRIA DO DRAGÃO','BRASA','AGENTE','ENFERMEIRO',
-                       'CAPANGA','BUG','MARMITÃO','PIERROT','ALUNO ESPECTRAL','GUARDA AFO'];
+                       'CAPANGA','BUG','MARMITÃO','PIERROT','ALUNO ESPECTRAL','GUARDA AFO',
+                       'PALHAÇO JÚNIOR','ULTRA FÃ','CO-PILOTO','LOBISOMEM','DRAGÃO MENOR',
+                       'TUBARÃO','ESCULTURA','MUTANTE','SOMBRA','ESPECTRO'];
   const vida = 4 + subIdx * 2; // 4, 6, 8, 10 conforme sub-fase 1-4
   return {
     tipo: 'subboss',
@@ -668,6 +672,8 @@ let selecaoIndex = 0;            // selecção no ecrã de armaduras
 let coins = 0;                   // moedas acumuladas (compradas armaduras)
 let lojaMensagem = '';           // mensagem temporária na loja
 let lojaMensagemTimer = 0;
+let lojaScrollY = 0;             // scroll vertical da grelha de armaduras (suaviza)
+let lojaScrollAlvo = 0;          // alvo a interpolar para scroll suave
 
 // Preço das armaduras (cavaleiro grátis no início)
 const PRECO_ARMADURA = {
@@ -685,6 +691,9 @@ const PRECO_ARMADURA = {
   // Armaduras das novas fases (11-15)
   boss_clown: 850, boss_hooligan: 950, boss_piloto: 1100,
   boss_lobo: 1300, boss_dragao_final: 2500,
+  // Armaduras das fases 16-20 (Arco da Revanche)
+  boss_tubarao: 3000, boss_escultor: 3500,
+  boss_neurotoxina: 4000, boss_maestro: 4500, boss_espirito: 6000,
 };
 
 // Lista canónica de TODAS as armaduras (para a loja mostrar tudo, vendido ou não)
@@ -696,6 +705,8 @@ const TODAS_ARMADURAS = [
   'boss_dragao','boss_demonio','boss_comissario','boss_doutor','boss_shigaraki',
   'boss_glitch','boss_chef','boss_palhaco','boss_professor','boss_afo',
   'boss_clown','boss_hooligan','boss_piloto','boss_lobo','boss_dragao_final',
+  // Fases 16-20 (Arco da Revanche)
+  'boss_tubarao','boss_escultor','boss_neurotoxina','boss_maestro','boss_espirito',
 ];
 // (pré-carregamento dos retratos PNG é feito depois de carregarRetratoArmadura ser definida — ver mais abaixo)
 
@@ -745,6 +756,11 @@ const FALA_BOSS = {
   'PILOTO RENEGADO': 'PREPARA-TE PARA A DESCOLAGEM... PARA O OUTRO LADO!',
   'LOBO DAS SOMBRAS': 'A FLORESTA ENGOLE-TE INTEIRO!',
   'DRAGÃO FINAL': 'EU SOU O FIM DE TUDO. NEM AS NUVENS TE SALVAM!',
+  'TUBARÃO TITÂNICO': 'A PRAIA É MEU DOMÍNIO — E TU SERÁS O MEU ALMOÇO!',
+  'ESCULTOR DO CAOS': 'VOU ESCULPIR A TUA DERROTA EM MÁRMORE ETERNO!',
+  'DR. NEUROTOXINA': 'A CIÊNCIA NUNCA FALHA. E TU VAS PROVAR ISSO!',
+  'MAESTRO DO MAL': 'ESTA NOITE, A SINFONIA DA TUA DESTRUIÇÃO COMEÇA!',
+  'ESPÍRITO SUPREMO': 'EU EXISTO HÁ SÉCULOS. TU... NEM UM SEGUNDO MAIS!',
 };
 
 /* ============================================================
@@ -800,6 +816,11 @@ const COLOR_GRADE = {
   13:{ cor: 'rgba(200, 220, 255, 0.10)' }, // Aeroporto - azul céu pálido
   14:{ cor: 'rgba(20, 80, 40, 0.20)' },    // Floresta - verde profundo
   15:{ cor: 'rgba(180, 180, 255, 0.18)' }, // Castelo Nuvens - azul-celeste
+  16:{ cor: 'rgba(255, 160, 0, 0.14)' },  // Praia - laranja dourado sol
+  17:{ cor: 'rgba(100, 40, 120, 0.16)' }, // Museu - roxo elegante
+  18:{ cor: 'rgba(0, 180, 100, 0.18)' },  // Laboratório - verde tóxico
+  19:{ cor: 'rgba(180, 0, 60, 0.18)' },   // Teatro - carmesim dramático
+  20:{ cor: 'rgba(20, 40, 120, 0.22)' },  // Cidade Fantasma - azul espectral
 };
 
 // Imagens-retrato das armaduras (carregam de assets/armaduras/<id>.png).
@@ -825,6 +846,21 @@ function carregarWalkArmadura(id) {
 TODAS_ARMADURAS.forEach(carregarRetratoArmadura);
 TODAS_ARMADURAS.forEach(carregarWalkArmadura);
 
+// Imagens de sub-ambientes (assets/sub-ambientes/F<fase>-<sub>-<slug>.png).
+// Chave: `${faseIdx+1}-${subIdx+1}` (1-based para combinar com nome do ficheiro).
+// Se não houver PNG, mantém-se fallback geométrico em desenharPropsSubAmbiente().
+const imgSubAmbientes = {};
+function carregarSubAmbiente(faseIdx, subIdx, slug) {
+  const key = `${faseIdx+1}-${subIdx+1}`;
+  const img = new Image();
+  img.src = `assets/sub-ambientes/F${faseIdx+1}-${subIdx+1}-${slug}.png`;
+  imgSubAmbientes[key] = { img, pronto: false };
+  img.onload  = () => imgSubAmbientes[key].pronto = true;
+  img.onerror = () => imgSubAmbientes[key].pronto = false;
+}
+// Fase 1 — Casa do Luís
+carregarSubAmbiente(0, 0, 'sala');
+
 // Mapa de nomes legíveis das armaduras (HUD + cutscenes)
 const NOME_ARMADURA = {
   cavaleiro: 'CAVALEIRO', ninja: 'NINJA', robo: 'ROBÔ',
@@ -844,6 +880,10 @@ const NOME_ARMADURA = {
   boss_clown: 'PALHAÇO SOMBRIO', boss_hooligan: 'HOOLIGAN GIGANTE',
   boss_piloto: 'PILOTO RENEGADO', boss_lobo: 'LOBO DAS SOMBRAS',
   boss_dragao_final: 'DRAGÃO FINAL',
+  // Bosses fases 16-20 (Arco da Revanche)
+  boss_tubarao: 'TUBARÃO TITÂNICO', boss_escultor: 'ESCULTOR DO CAOS',
+  boss_neurotoxina: 'DR. NEUROTOXINA', boss_maestro: 'MAESTRO DO MAL',
+  boss_espirito: 'ESPÍRITO SUPREMO',
 };
 
 /* ============================================================
@@ -867,6 +907,11 @@ const SUB_AMBIENTES = [
   ['CHECK-IN', 'DUTY FREE', 'PISTA', 'HANGAR', 'TORRE CONTROLO'],              // 13 Aeroporto
   ['TRILHO', 'LAGO', 'CLAREIRA', 'CAVERNA', 'ÁRVORE ANCIÃ'],                   // 14 Floresta
   ['PONTE', 'SALÃO TRONO', 'TORRE NORTE', 'TORRE SUL', 'TOPO CÉU'],            // 15 Castelo
+  ['ENTRADA PRAIA', 'MERGULHO', 'GRUTA SUBAQUÁTICA', 'NAUFRÁGIO', 'ALTO MAR'],  // 16 Praia
+  ['HALL ENTRADA', 'GALERIA PINTURA', 'SALA ESCULTURA', 'COFRE', 'TECTO ABERTO'], // 17 Museu
+  ['LABORATÓRIO', 'CÂMARA TÓXICA', 'SALA MUTANTES', 'REACTOR', 'NÚCLEO CENTRAL'], // 18 Lab
+  ['FOYER', 'BASTIDORES', 'PALCO', 'CAMARINS', 'FOSSO ORQUESTRA'],               // 19 Teatro
+  ['RUA ABANDONADA', 'EDIFÍCIO SOMBRIO', 'SUBTERRÂNEO', 'TEMPLO MALDITO', 'DIMENSÃO ESPECTRAL'], // 20 Cidade Fantasma
 ];
 function nomeSubAmbiente(faseIdx, subIdx) {
   return (SUB_AMBIENTES[faseIdx] && SUB_AMBIENTES[faseIdx][subIdx]) || ('CENA ' + (subIdx + 1));
@@ -1838,6 +1883,113 @@ const FASES = [
     ],
     plataformas: [P(500, 120), P(950, 180, 100), P(1400, 120), P(1850, 220, 110), P(2400, 150)],
     recompensa: 'boss_dragao_final',
+  },
+  /* ===== FASES 16-20 — Arco da Revanche ===== */
+  {
+    nome: 'PRAIA', numero: 16, musica: 'fase16_praia', largura: 2900,
+    desenharCenario: () => desenharCenarioPraia(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ DO MAR',
+      fala:'O DRAGÃO FINAL CAIU... MAS O MAR ESCONDE HORRORES PIORES!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 14, '#f80'),
+      criarVoador(650, '#fc0'),
+      criarMonstro(900, 14, '#f80'),
+      criarVoador(1150, '#ff0'),
+      criarMonstro(1350, 15, '#f80'),
+      criarVoador(1550, '#fc0'),
+      criarMonstro(1750, 15, '#f80'),
+      criarVoador(1950, '#ff0'),
+      criarMonstro(2150, 16, '#f80'),
+      criarVoador(2350, '#fc0'),
+      criarDragao(2650, 42, '#f60', 'TUBARÃO TITÂNICO'),
+    ],
+    plataformas: [P(500, 100), P(950, 160, 100), P(1400, 100), P(1900, 180, 100), P(2400, 130)],
+    recompensa: 'boss_tubarao',
+  },
+  {
+    nome: 'MUSEU DE ARTE', numero: 17, musica: 'fase17_museu', largura: 2900,
+    desenharCenario: () => desenharCenarioMuseu(),
+    cutscene: { ator:'shigaraki', nomeAtor:'VOZ ELEGANTE',
+      fala:'A ARTE MAIS BELA SERÁ A TUA QUEDA, MIDORIYA!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 15, '#804080'),
+      criarVoador(650, '#c080ff'),
+      criarMonstro(900, 15, '#804080'),
+      criarVoador(1150, '#c080ff'),
+      criarMonstro(1350, 16, '#804080'),
+      criarVoador(1550, '#ff80c0'),
+      criarMonstro(1750, 16, '#804080'),
+      criarVoador(1950, '#c080ff'),
+      criarMonstro(2150, 17, '#804080'),
+      criarVoador(2350, '#ff80c0'),
+      criarDragao(2650, 45, '#804080', 'ESCULTOR DO CAOS'),
+    ],
+    plataformas: [P(500, 110), P(950, 170, 100), P(1400, 110), P(1900, 200, 100), P(2450, 140)],
+    recompensa: 'boss_escultor',
+  },
+  {
+    nome: 'LABORATÓRIO SECRETO', numero: 18, musica: 'fase18_laboratorio', largura: 3000,
+    desenharCenario: () => desenharCenarioLaboratorio(),
+    cutscene: { ator:'shigaraki', nomeAtor:'DR. NEUROTOXINA',
+      fala:'ANOS DE EXPERIÊNCIAS... E TU SERÁS O MEU SUJEITO FINAL!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 16, '#00a060'),
+      criarVoador(650, '#00ff80'),
+      criarMonstro(850, 16, '#00a060'),
+      criarVoador(1100, '#00ff80'),
+      criarMonstro(1300, 17, '#00a060'),
+      criarVoador(1550, '#80ffc0'),
+      criarMonstro(1750, 17, '#00a060'),
+      criarVoador(1950, '#00ff80'),
+      criarMonstro(2200, 18, '#00a060'),
+      criarVoador(2450, '#80ffc0'),
+      criarDragao(2750, 48, '#008040', 'DR. NEUROTOXINA'),
+    ],
+    plataformas: [P(550, 110), P(1000, 180, 100), P(1500, 120), P(2000, 210, 100), P(2500, 150)],
+    recompensa: 'boss_neurotoxina',
+  },
+  {
+    nome: 'TEATRO SOMBRIO', numero: 19, musica: 'fase19_teatro', largura: 3000,
+    desenharCenario: () => desenharCenarioTeatro(),
+    cutscene: { ator:'shigaraki', nomeAtor:'MAESTRO DO MAL',
+      fala:'O ESPECTÁCULO COMEÇA... E NUNCA VAI TERMINAR PARA TI!' },
+    spawnInimigos: () => [
+      criarMonstro(450, 17, '#a00050'),
+      criarVoador(650, '#ff4080'),
+      criarMonstro(900, 17, '#a00050'),
+      criarVoador(1150, '#ff4080'),
+      criarMonstro(1350, 18, '#a00050'),
+      criarVoador(1600, '#ff80a0'),
+      criarMonstro(1800, 18, '#a00050'),
+      criarVoador(2050, '#ff4080'),
+      criarMonstro(2250, 19, '#a00050'),
+      criarVoador(2500, '#ff80a0'),
+      criarDragao(2800, 52, '#800040', 'MAESTRO DO MAL'),
+    ],
+    plataformas: [P(550, 120), P(1050, 180, 100), P(1550, 130), P(2050, 220, 100), P(2600, 160)],
+    recompensa: 'boss_maestro',
+  },
+  {
+    nome: 'CIDADE FANTASMA', numero: 20, musica: 'fase20_fantasma', largura: 3200,
+    desenharCenario: () => desenharCenarioCidadeFantasma(),
+    cutscene: { ator:'afo', nomeAtor:'ESPÍRITO SUPREMO',
+      fala:'EU ESTIVE SEMPRE AQUI. NAS SOMBRAS. NO VENTO. EM TODO O LADO. E AGORA CHEGO ATÉ TI.' },
+    spawnInimigos: () => [
+      criarMonstro(450, 18, '#204080'),
+      criarVoador(650, '#80a0ff'),
+      criarMonstro(850, 18, '#204080'),
+      criarVoador(1100, '#80a0ff'),
+      criarMonstro(1350, 19, '#204080'),
+      criarVoador(1600, '#c0d0ff'),
+      criarMonstro(1850, 19, '#204080'),
+      criarVoador(2100, '#80a0ff'),
+      criarMonstro(2350, 20, '#204080'),
+      criarVoador(2600, '#c0d0ff'),
+      criarMonstro(2800, 20, '#204080'),
+      criarDragao(3000, 60, '#102060', 'ESPÍRITO SUPREMO'),
+    ],
+    plataformas: [P(550, 130), P(1100, 200, 110), P(1650, 140), P(2200, 240, 110), P(2800, 170)],
+    recompensa: 'boss_espirito',
     finalDoJogo: true,
   },
 ];
@@ -1862,7 +2014,7 @@ function iniciarFase(idx) {
       });
     }
     // Voador a guardar o tesouro (cor temática por fase)
-    const corVoador = ['#fc0','#f80','#48f','#fff','#f4a','#0ff','#fc0','#fc0','#fff','#f0f','#f4a','#0c4','#aaf','#0c4','#88f'][idx] || '#fc0';
+    const corVoador = ['#fc0','#f80','#48f','#fff','#f4a','#0ff','#fc0','#fc0','#fff','#f0f','#f4a','#0c4','#aaf','#0c4','#88f','#fc0','#c080ff','#00ff80','#ff4080','#80a0ff'][idx] || '#fc0';
     const guardiao = criarVoador(ptopo.x + ptopo.w/2 - 17, corVoador);
     guardiao.yBase = ptopo.y - 60; // patrulha acima da plataforma
     guardiao.y = guardiao.yBase;
@@ -2270,6 +2422,25 @@ function atualizarSelecaoArmadura() {
   const cellW = 150, cellH = 110;
   const startX = W/2 - cols * cellW / 2;
   const startY = 75;
+  // Auto-scroll: garante que a célula seleccionada fica visível
+  const totalRows = Math.ceil(arms.length / cols);
+  const viewportH = H - startY - 60; // espaço útil (descontando footer)
+  const maxScroll = Math.max(0, totalRows * cellH - viewportH);
+  const selRow = Math.floor(selecaoIndex / cols);
+  const selY = selRow * cellH;
+  // Se a linha seleccionada estiver fora do viewport, ajusta o alvo
+  if (selY < lojaScrollAlvo) lojaScrollAlvo = selY;
+  else if (selY + cellH > lojaScrollAlvo + viewportH) lojaScrollAlvo = selY + cellH - viewportH;
+  lojaScrollAlvo = Math.max(0, Math.min(maxScroll, lojaScrollAlvo));
+  // Interpola scroll suavemente
+  lojaScrollY += (lojaScrollAlvo - lojaScrollY) * 0.2;
+
+  // Clipping: só desenhar grelha dentro do viewport (evita ir por cima do header)
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, startY - 4, W, viewportH + 8);
+  ctx.clip();
+  ctx.translate(0, -lojaScrollY);
 
   for (let i = 0; i < arms.length; i++) {
     const col = i % cols;
@@ -2329,6 +2500,20 @@ function atualizarSelecaoArmadura() {
       ctx.fillText('✓ DESBLOQUEADA', cx + cellW/2, cy + cellH - 8);
     }
   }
+  ctx.restore(); // fim do clip + translate da grelha
+  // Indicador de scroll (seta a piscar quando há mais para baixo/cima)
+  if (lojaScrollAlvo < maxScroll) {
+    ctx.fillStyle = (Math.floor(tempo/15)%2) ? '#fc0' : 'rgba(255,200,40,0.4)';
+    ctx.font = 'bold 22px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼', W/2, H - 50);
+  }
+  if (lojaScrollAlvo > 0) {
+    ctx.fillStyle = (Math.floor(tempo/15)%2) ? '#fc0' : 'rgba(255,200,40,0.4)';
+    ctx.font = 'bold 22px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('▲', W/2, startY - 8);
+  }
 
   // Mensagem temporária da loja
   if (lojaMensagemTimer > 0) {
@@ -2364,6 +2549,7 @@ function atualizarSelecaoArmadura() {
   }
   if (teclasJustNow['ArrowDown']  || teclasJustNow['KeyS']) {
     if (selecaoIndex + cols < arms.length) selecaoIndex += cols;
+    else if (selecaoIndex < arms.length - 1) selecaoIndex = arms.length - 1; // salta para a última (linha incompleta)
     som(440, 0.04);
   }
 
@@ -3928,6 +4114,242 @@ function desenharCenarioCastelo() {
   desenharChao('#9090b8', '#606080');
 }
 
+/* ---- FASE 16: PRAIA ---- */
+function desenharCenarioPraia() {
+  if (desenharFundoFase('16-praia')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#1a8aee'); grd.addColorStop(0.6, '#40b0f0'); grd.addColorStop(1, '#f0c840');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Sol brilhante
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.05), 0);
+  const pulsoSol = (Math.sin(tempo * 0.03)+1)/2;
+  const raioSol = 50 + pulsoSol * 4;
+  const grdSol = ctx.createRadialGradient(W*0.75, 80, 0, W*0.75, 80, raioSol+40);
+  grdSol.addColorStop(0, 'rgba(255,240,100,0.95)');
+  grdSol.addColorStop(0.6, 'rgba(255,180,0,0.4)');
+  grdSol.addColorStop(1, 'rgba(255,180,0,0)');
+  ctx.fillStyle = grdSol; ctx.beginPath(); ctx.arc(W*0.75, 80, raioSol+40, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ffe000'; ctx.beginPath(); ctx.arc(W*0.75, 80, raioSol, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // Ondas do mar (paralaxe)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.4), 0);
+  for (let wx = -200; wx < 5000; wx += 120) {
+    const wOff = Math.sin(tempo * 0.06 + wx * 0.01) * 8;
+    ctx.fillStyle = 'rgba(0,100,200,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(wx, CHAO_Y - 20 + wOff, 80, 14, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+  // Palmeiras (paralaxe médio)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.55), 0);
+  for (let px = 120; px < 5000; px += 500) {
+    ctx.fillStyle = '#5a3010'; ctx.fillRect(px, CHAO_Y - 140, 14, 140);
+    ctx.strokeStyle = '#0a6a20'; ctx.lineWidth = 6;
+    for (let lf = 0; lf < 5; lf++) {
+      const ang = -Math.PI/3 + lf * (Math.PI * 0.3) + Math.sin(tempo*0.04)*0.1;
+      ctx.beginPath();
+      ctx.moveTo(px + 7, CHAO_Y - 140);
+      ctx.quadraticCurveTo(px+7+Math.cos(ang)*60, CHAO_Y-140+Math.sin(ang)*25, px+7+Math.cos(ang)*110, CHAO_Y-140+Math.sin(ang)*10);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+  desenharChao('#e8c040', '#c8a030', 55);
+}
+
+/* ---- FASE 17: MUSEU DE ARTE ---- */
+function desenharCenarioMuseu() {
+  if (desenharFundoFase('17-museu')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#180828'); grd.addColorStop(1, '#2a1040');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Vitrais (janelas coloridas - paralaxe lento)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.2), 0);
+  const vitralCores = ['#f44','#4af','#fc0','#a4f','#4fa'];
+  for (let vx = 80; vx < 5000; vx += 280) {
+    ctx.fillStyle = '#333'; ctx.fillRect(vx, 40, 60, 120);
+    ctx.fillStyle = '#222'; ctx.fillRect(vx+28, 40, 4, 120); ctx.fillRect(vx, 98, 60, 4);
+    const c1 = vitralCores[Math.floor(vx/280)%5], c2 = vitralCores[(Math.floor(vx/280)+2)%5];
+    ctx.fillStyle = c1; ctx.globalAlpha = 0.6; ctx.fillRect(vx+1, 41, 27, 56);
+    ctx.fillStyle = c2; ctx.fillRect(vx+33, 41, 26, 56);
+    ctx.fillStyle = c1; ctx.fillRect(vx+1, 99, 27, 60);
+    ctx.fillStyle = c2; ctx.fillRect(vx+33, 99, 26, 60);
+    ctx.globalAlpha = 0.08; ctx.fillStyle = c1;
+    ctx.beginPath(); ctx.moveTo(vx, 160); ctx.lineTo(vx-30, CHAO_Y); ctx.lineTo(vx+60, CHAO_Y); ctx.lineTo(vx+90, 160); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  // Colunas clássicas
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#c0b090'; ctx.fillRect(jx + 10, 150, 30, CHAO_Y - 150);
+    ctx.fillRect(jx, 145, 50, 12); ctx.fillRect(jx + 2, 148, 46, 4);
+  }, 260, 0.5);
+  // Quadros
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.55), 0);
+  const quadroCores = ['#f44','#4a8','#fc0','#a4f','#48f'];
+  for (let qx = 200; qx < 5000; qx += 350) {
+    const qc = quadroCores[Math.floor(qx/350)%5];
+    ctx.fillStyle = '#222'; ctx.fillRect(qx-4, 180-4, 88, 68);
+    ctx.fillStyle = qc; ctx.fillRect(qx, 180, 80, 60);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)'; ctx.fillRect(qx, 180, 80, 20);
+  }
+  ctx.restore();
+  desenharChao('#c0b890', '#a09870');
+}
+
+/* ---- FASE 18: LABORATÓRIO SECRETO ---- */
+function desenharCenarioLaboratorio() {
+  if (desenharFundoFase('18-laboratorio')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#050e08'); grd.addColorStop(1, '#0a2018');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Tubos de vidro com líquido tóxico
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.25), 0);
+  for (let tx = 80; tx < 5000; tx += 180) {
+    const nivel = 0.4 + 0.5 * (((tx*7)+Math.floor(tempo*0.5)) % 100) / 100;
+    ctx.fillStyle = 'rgba(0,200,80,0.15)'; ctx.fillRect(tx, 40, 40, CHAO_Y - 40);
+    ctx.strokeStyle = 'rgba(0,255,100,0.6)'; ctx.lineWidth = 2;
+    ctx.strokeRect(tx, 40, 40, CHAO_Y - 40);
+    const alturaLiq = (CHAO_Y - 40) * nivel;
+    ctx.fillStyle = 'rgba(0,200,80,0.7)';
+    ctx.fillRect(tx+2, CHAO_Y - alturaLiq, 36, alturaLiq);
+    if (Math.sin(tempo*0.1 + tx) > 0.6) {
+      ctx.fillStyle = 'rgba(100,255,150,0.8)';
+      ctx.beginPath(); ctx.arc(tx + 10 + (tx%7)*4, CHAO_Y - alturaLiq + 5, 3, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  ctx.restore();
+  // Grade metálica no tecto
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.6), 0);
+  ctx.strokeStyle = '#444'; ctx.lineWidth = 3;
+  for (let gx = 0; gx < 5000; gx += 60) {
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, 50); ctx.stroke();
+  }
+  ctx.fillStyle = '#333'; ctx.fillRect(0, 0, 5000, 8);
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 6;
+  for (let cx = 0; cx < 5000; cx += 240) {
+    ctx.beginPath(); ctx.moveTo(cx, 30); ctx.lineTo(cx+180, 30); ctx.stroke();
+    ctx.fillStyle = '#555'; ctx.fillRect(cx+100, 20, 20, 20);
+  }
+  ctx.restore();
+  ctx.fillStyle = 'rgba(0,180,60,0.06)'; ctx.fillRect(0, CHAO_Y - 20, W * 10, 20);
+  desenharChao('#1a2a1a', '#0a1a0a');
+}
+
+/* ---- FASE 19: TEATRO SOMBRIO ---- */
+function desenharCenarioTeatro() {
+  if (desenharFundoFase('19-teatro')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#150010'); grd.addColorStop(1, '#300020');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Cortinas de veludo
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.15), 0);
+  for (let cx = 0; cx < 5000; cx += 340) {
+    ctx.fillStyle = '#6a0020';
+    ctx.beginPath(); ctx.moveTo(cx, 0);
+    for (let y = 0; y <= CHAO_Y; y += 20) {
+      ctx.lineTo(cx + 35 + Math.sin(y * 0.08 + tempo*0.02) * 15, y);
+    }
+    ctx.lineTo(cx, CHAO_Y); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fc0'; ctx.fillRect(cx, 0, 80, 8);
+  }
+  ctx.restore();
+  // Holofotes
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.5), 0);
+  for (let hx = 150; hx < 5000; hx += 400) {
+    const tx = hx + Math.sin(tempo * 0.03 + hx * 0.002) * 200;
+    const grdH = ctx.createRadialGradient(tx, CHAO_Y - 20, 0, tx, CHAO_Y - 20, 100);
+    grdH.addColorStop(0, 'rgba(255,200,100,0.4)');
+    grdH.addColorStop(1, 'rgba(255,200,100,0)');
+    ctx.fillStyle = grdH; ctx.fillRect(tx-100, CHAO_Y-120, 200, 120);
+    ctx.strokeStyle = 'rgba(255,200,100,0.2)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(tx - 50, CHAO_Y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx, 0); ctx.lineTo(tx + 50, CHAO_Y); ctx.stroke();
+  }
+  ctx.restore();
+  // Camarotes
+  desenharParedeRepetida('rgba(0,0,0,0)', (jx) => {
+    ctx.fillStyle = '#300'; ctx.fillRect(jx, 100, 100, 80);
+    ctx.fillStyle = '#500'; ctx.fillRect(jx, 98, 100, 8);
+    for (let s = 0; s < 4; s++) {
+      ctx.fillStyle = ['#f44','#a44','#800','#c22'][s];
+      ctx.fillRect(jx + 8 + s*22, 115, 16, 24);
+    }
+  }, 300, 0.35);
+  desenharChao('#1a0010', '#0a000a');
+}
+
+/* ---- FASE 20: CIDADE FANTASMA ---- */
+function desenharCenarioCidadeFantasma() {
+  if (desenharFundoFase('20-fantasma')) return;
+  const grd = ctx.createLinearGradient(0, 0, 0, CHAO_Y);
+  grd.addColorStop(0, '#010208'); grd.addColorStop(0.5, '#040820'); grd.addColorStop(1, '#081030');
+  ctx.fillStyle = grd; ctx.fillRect(0, 0, W, CHAO_Y);
+  // Lua espectral
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.05), 0);
+  const luaX = W * 0.3, luaY = 80;
+  const grdLua = ctx.createRadialGradient(luaX, luaY, 0, luaX, luaY, 70);
+  grdLua.addColorStop(0, 'rgba(180,200,255,0.9)');
+  grdLua.addColorStop(0.6, 'rgba(100,130,200,0.4)');
+  grdLua.addColorStop(1, 'rgba(60,80,160,0)');
+  ctx.fillStyle = grdLua; ctx.beginPath(); ctx.arc(luaX, luaY, 70, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(200,220,255,0.85)'; ctx.beginPath(); ctx.arc(luaX, luaY, 34, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // Edifícios abandonados (silhuetas)
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.2), 0);
+  for (let bx = 0; bx < 5000; bx += 160) {
+    const bh = 120 + ((bx * 13) % 160);
+    ctx.fillStyle = '#050810'; ctx.fillRect(bx, CHAO_Y - bh, 120, bh);
+    for (let wy = 0; wy < bh - 20; wy += 30) {
+      for (let wx2 = 0; wx2 < 100; wx2 += 24) {
+        if (Math.sin(tempo*0.04 + bx*0.01 + wy*0.03 + wx2*0.02) > 0.6) {
+          ctx.fillStyle = 'rgba(100,150,255,0.5)';
+          ctx.fillRect(bx + 8 + wx2, CHAO_Y - bh + 8 + wy, 14, 18);
+        }
+      }
+    }
+  }
+  ctx.restore();
+  // Névoa espectral
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.6), 0);
+  for (let nx = 0; nx < 5000; nx += 200) {
+    const ny = CHAO_Y - 60 + Math.sin(tempo * 0.05 + nx * 0.008) * 20;
+    const grdN = ctx.createRadialGradient(nx, ny, 0, nx, ny, 80);
+    grdN.addColorStop(0, 'rgba(80,100,200,0.18)');
+    grdN.addColorStop(1, 'rgba(80,100,200,0)');
+    ctx.fillStyle = grdN; ctx.beginPath(); ctx.arc(nx, ny, 80, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+  // Espíritos flutuantes
+  ctx.save();
+  ctx.translate(-Math.floor(camera.x * 0.8), 0);
+  for (let sx = 100; sx < 5000; sx += 350) {
+    const sy = CHAO_Y - 100 + Math.sin(tempo*0.07 + sx*0.01) * 30;
+    ctx.globalAlpha = 0.5 + Math.sin(tempo*0.1 + sx*0.02)*0.2;
+    ctx.fillStyle = '#c0d0ff';
+    ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI); ctx.fill();
+    ctx.fillRect(sx-10, sy, 20, 14);
+    ctx.fillStyle = '#040820';
+    ctx.fillRect(sx-5, sy-4, 4, 4); ctx.fillRect(sx+1, sy-4, 4, 4);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  desenharChao('#0a1020', '#050810');
+}
+
 /* ============================================================
    PROPS DOS SUB-AMBIENTES
    Desenha props decorativos sobrepostos ao cenário base, conforme
@@ -3947,9 +4369,16 @@ function desenharPropsSubAmbiente() {
   // ===== FASE 1 CASA =====
   if (fi === 0) {
     if (si === 0) { // SALA
-      ctx.fillStyle = '#6a3020'; ctx.fillRect(420, baseY-60, 160, 60); // sofá
-      ctx.fillStyle = '#a44'; ctx.fillRect(420, baseY-80, 160, 22);
-      ctx.fillStyle = '#222'; ctx.fillRect(900, baseY-90, 80, 60); ctx.fillStyle = '#0af'; ctx.fillRect(906, baseY-84, 68, 48); // TV
+      const sub = imgSubAmbientes['1-1'];
+      if (sub && sub.pronto) {
+        // Backdrop PNG cobre toda a fase, do topo até ao chão (paralaxe já aplicado pelo translate da camera).
+        ctx.drawImage(sub.img, 0, 0, largura, CHAO_Y);
+      } else {
+        // Fallback geométrico (PNG ainda a carregar ou indisponível)
+        ctx.fillStyle = '#6a3020'; ctx.fillRect(420, baseY-60, 160, 60); // sofá
+        ctx.fillStyle = '#a44'; ctx.fillRect(420, baseY-80, 160, 22);
+        ctx.fillStyle = '#222'; ctx.fillRect(900, baseY-90, 80, 60); ctx.fillStyle = '#0af'; ctx.fillRect(906, baseY-84, 68, 48); // TV
+      }
     } else if (si === 1) { // COZINHA
       ctx.fillStyle = '#ddd'; ctx.fillRect(400, baseY-100, 100, 100); // frigorífico
       ctx.fillStyle = '#888'; ctx.fillRect(404, baseY-50, 6, 4);
@@ -4082,6 +4511,45 @@ function desenharPropsSubAmbiente() {
     else if (si === 3) { repe(220, x => { ctx.fillStyle = '#88a0c0'; ctx.fillRect(x, baseY-180, 40, 180); ctx.fillStyle = '#aab'; ctx.fillRect(x-5, baseY-190, 50, 12); ctx.fillStyle = '#f44'; ctx.fillRect(x+18, baseY-220, 4, 40); }); } // TORRE SUL
     else { ctx.fillStyle = 'rgba(180,180,255,0.3)'; ctx.fillRect(0, 0, largura, CHAO_Y); ctx.fillStyle = '#fff'; for (let cx = 100; cx < largura; cx += 220) { const yy = 80 + ((cx*7)%80); ctx.beginPath(); ctx.arc(cx, yy, 30, 0, Math.PI*2); ctx.fill(); } repe(380, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-30, 40, 30); }); } // TOPO CÉU
   }
+  // ===== FASE 16 PRAIA =====
+  else if (fi === 15) {
+    if (si === 0) { repe(260, x => { ctx.fillStyle = '#e8c040'; ctx.fillRect(x, baseY-8, 80, 8); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+20, baseY-20, 12, Math.PI, 0); ctx.fill(); ctx.beginPath(); ctx.arc(x+50, baseY-16, 9, Math.PI, 0); ctx.fill(); }); } // ENTRADA PRAIA - castelos areia
+    else if (si === 1) { repe(220, x => { ctx.fillStyle = '#048'; ctx.fillRect(x, baseY-60, 100, 60); ctx.fillStyle = 'rgba(100,200,255,0.5)'; ctx.fillRect(x+8, baseY-52, 84, 44); ctx.strokeStyle = '#0af'; ctx.lineWidth = 2; for (let b = 0; b < 4; b++) ctx.strokeRect(x+10+b*20, baseY-50, 18, 40); }); } // MERGULHO - jaulas subaquáticas
+    else if (si === 2) { ctx.fillStyle = '#014'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(160, x => { ctx.fillStyle = '#025'; ctx.beginPath(); ctx.arc(x, baseY-60, 50, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#0af'; for (let f2 = 0; f2 < 3; f2++) { const a = f2*Math.PI/2.5 + tempo*0.02; ctx.beginPath(); ctx.arc(x+Math.cos(a)*30, baseY-60+Math.sin(a)*20, 8, 0, Math.PI*2); ctx.fill(); } }); } // GRUTA SUBAQUÁTICA corais
+    else if (si === 3) { ctx.fillStyle = '#024'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(350, x => { ctx.fillStyle = '#422'; ctx.fillRect(x, baseY-90, 180, 90); ctx.fillStyle = '#633'; for (let p = 0; p < 3; p++) ctx.fillRect(x+20+p*50, baseY-86, 30, 30); ctx.fillStyle = '#444'; ctx.fillRect(x+70, baseY-50, 40, 50); }); } // NAUFRÁGIO casco navio
+    else { ctx.fillStyle = 'rgba(0,0,80,0.8)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(300, x => { const wy = baseY-40 + Math.sin(tempo*0.05 + x*0.02)*20; ctx.fillStyle = '#0af'; ctx.beginPath(); ctx.ellipse(x, wy, 100, 20, 0, 0, Math.PI*2); ctx.fill(); }); } // ALTO MAR ondas gigantes
+  }
+  // ===== FASE 17 MUSEU =====
+  else if (fi === 16) {
+    if (si === 0) { repe(280, x => { ctx.fillStyle = '#ddd'; ctx.fillRect(x, baseY-60, 100, 60); ctx.fillStyle = '#888'; ctx.fillRect(x+35, baseY-80, 30, 22); ctx.fillStyle = '#222'; ctx.fillRect(x+40, baseY-55, 20, 30); }); } // HALL ENTRADA - pilares
+    else if (si === 1) { repe(260, x => { const gc = ['#f44','#48f','#0a4','#fc0'][Math.floor(x/260)%4]; ctx.fillStyle = '#111'; ctx.fillRect(x, 160, 80, 80); ctx.fillStyle = gc; ctx.fillRect(x+4, 164, 72, 72); }); } // GALERIA PINTURA quadros grandes
+    else if (si === 2) { repe(200, x => { ctx.fillStyle = '#ccc'; ctx.beginPath(); ctx.arc(x+20, baseY-50, 20, Math.PI, 0); ctx.fill(); ctx.fillRect(x+16, baseY-50, 8, 50); ctx.fillStyle = '#aaa'; ctx.beginPath(); ctx.arc(x+20, baseY-50, 22, Math.PI, 0); ctx.stroke(); }); } // SALA ESCULTURA bustos
+    else if (si === 3) { ctx.fillStyle = '#111'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(240, x => { ctx.strokeStyle = '#fc0'; ctx.lineWidth = 2; ctx.strokeRect(x, baseY-100, 80, 100); ctx.fillStyle = 'rgba(255,200,0,0.1)'; ctx.fillRect(x, baseY-100, 80, 100); ctx.fillStyle = '#fc0'; ctx.fillRect(x+30, baseY-40, 20, 6); }); } // COFRE - segurança
+    else { ctx.fillStyle = '#0a0a20'; ctx.fillRect(0, 0, largura, CHAO_Y); for (let sx = 0; sx < largura; sx += 40) { ctx.fillStyle = (Math.floor(tempo/10)+Math.floor(sx/40))%2 ? '#222':'#111'; ctx.fillRect(sx, baseY-4, 40, 4); } repe(320, x => { ctx.fillStyle = '#604080'; ctx.fillRect(x, 100, 80, CHAO_Y-100); ctx.fillStyle = '#fc0'; for (let s = 0; s < 3; s++) ctx.fillRect(x+8+s*24, 110, 18, 30); }); } // TECTO ABERTO - estátuas neon
+  }
+  // ===== FASE 18 LABORATÓRIO =====
+  else if (fi === 17) {
+    if (si === 0) { repe(220, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-80, 80, 80); ctx.fillStyle = '#0f0'; ctx.fillRect(x+10, baseY-70, 60, 30); ctx.fillStyle = '#0a0'; ctx.fillRect(x+20, baseY-36, 40, 4); }); } // LABORATÓRIO - bancadas verdes
+    else if (si === 1) { ctx.fillStyle = 'rgba(0,160,40,0.2)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(180, x => { ctx.strokeStyle = '#0f0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, baseY-40, 30, 0, Math.PI*2); ctx.stroke(); ctx.fillStyle = 'rgba(0,255,80,0.3)'; ctx.beginPath(); ctx.arc(x, baseY-40, 30, 0, Math.PI*2); ctx.fill(); }); } // CÂMARA TÓXICA bolhas
+    else if (si === 2) { repe(260, x => { ctx.fillStyle = '#0a3020'; ctx.fillRect(x, baseY-130, 100, 130); ctx.fillStyle = '#00c060'; for (let m = 0; m < 3; m++) { ctx.beginPath(); ctx.arc(x+20+m*30, baseY-60, 15, 0, Math.PI*2); ctx.fill(); } ctx.fillStyle = '#008040'; ctx.fillRect(x+30, baseY-130, 40, 30); }); } // SALA MUTANTES tanques
+    else if (si === 3) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(400, x => { const pulse = (Math.sin(tempo*0.1+x*0.01)+1)/2; ctx.fillStyle = `rgba(255,${(100+pulse*155)|0},0,0.8)`; ctx.beginPath(); ctx.arc(x+100, baseY-80, 40+pulse*10, 0, Math.PI*2); ctx.fill(); }); } // REACTOR núcleo pulsante
+    else { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, largura, CHAO_Y); const pulseC = (Math.sin(tempo*0.08)+1)/2; ctx.fillStyle = `rgba(0,${(180+pulseC*75)|0},60,0.4)`; ctx.fillRect(0, 0, largura, CHAO_Y); repe(160, x => { ctx.fillStyle = '#0f0'; ctx.fillRect(x, 0, 2, CHAO_Y); }); } // NÚCLEO CENTRAL matrix verde
+  }
+  // ===== FASE 19 TEATRO =====
+  else if (fi === 18) {
+    if (si === 0) { repe(240, x => { ctx.fillStyle = '#500'; ctx.fillRect(x, baseY-60, 60, 60); ctx.fillStyle = '#fc0'; ctx.fillRect(x+20, baseY-90, 20, 32); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x+30, baseY-90, 8, Math.PI, 0); ctx.fill(); }); } // FOYER - candeeiros
+    else if (si === 1) { repe(200, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-120, 80, 120); for (let r = 0; r < 6; r++) { ctx.fillStyle = ['#f44','#4af','#fc0'][r%3]; ctx.fillRect(x+8+r*10, baseY-108, 8, 6); } ctx.fillStyle = '#444'; ctx.fillRect(x+30, baseY-60, 20, 60); }); } // BASTIDORES roupas/adereços
+    else if (si === 2) { ctx.fillStyle = '#a00030'; ctx.fillRect(0, CHAO_Y-8, largura, 8); repe(180, x => { ctx.fillStyle = '#fc0'; ctx.fillRect(x, baseY-4, 4, 4); }); ctx.fillStyle = 'rgba(255,200,100,0.1)'; ctx.fillRect(0, 0, largura, CHAO_Y); } // PALCO holofote
+    else if (si === 3) { repe(180, x => { ctx.fillStyle = '#300'; ctx.fillRect(x, baseY-80, 60, 80); ctx.fillStyle = '#8a0'; ctx.fillRect(x+10, baseY-72, 40, 24); ctx.fillStyle = '#fff'; ctx.fillText('★', x+22, baseY-52); }); } // CAMARINS espelhos
+    else { ctx.fillStyle = '#0a0010'; ctx.fillRect(0, 0, largura, CHAO_Y); for (let ns = 0; ns < 20; ns++) { const nx2 = (ns*137+Math.floor(tempo*0.5)*13) % largura; ctx.fillStyle = 'rgba(180,0,80,0.6)'; ctx.beginPath(); ctx.arc(nx2, 40+ns*20, 4, 0, Math.PI*2); ctx.fill(); } repe(260, x => { ctx.fillStyle = '#400010'; ctx.fillRect(x, baseY-180, 40, 180); ctx.fillStyle = '#fc0'; for (let f3 = 0; f3 < 4; f3++) ctx.fillRect(x+5+f3*8, 60+f3*40, 6, 30); }); } // FOSSO ORQUESTRA instrumentos
+  }
+  // ===== FASE 20 CIDADE FANTASMA =====
+  else if (fi === 19) {
+    if (si === 0) { ctx.fillStyle = 'rgba(20,30,60,0.5)'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(160, x => { ctx.fillStyle = '#222'; ctx.fillRect(x, baseY-80, 40, 80); ctx.fillStyle = '#204080'; ctx.fillRect(x+5, baseY-70, 30, 20); }); } // RUA ABANDONADA - edifícios baixos
+    else if (si === 1) { repe(280, x => { ctx.fillStyle = '#111'; ctx.fillRect(x, baseY-200, 120, 200); ctx.fillStyle = '#1a2a50'; for (let wr = 0; wr < 6; wr++) for (let wc = 0; wc < 4; wc++) { if ((wr+wc+Math.floor(tempo*0.05+x*0.01))%3 > 0) { ctx.fillRect(x+8+wc*28, baseY-190+wr*30, 20, 22); } } }); } // EDIFÍCIO SOMBRIO janelas intermitentes
+    else if (si === 2) { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(200, x => { ctx.strokeStyle = 'rgba(80,100,200,0.5)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x+40, CHAO_Y); ctx.stroke(); }); repe(140, x => { ctx.fillStyle = '#204080'; ctx.fillRect(x, baseY-30, 60, 30); }); } // SUBTERRÂNEO - tubo/canos
+    else if (si === 3) { ctx.fillStyle = '#020308'; ctx.fillRect(0, 0, largura, CHAO_Y); repe(240, x => { ctx.fillStyle = '#102040'; ctx.fillRect(x, baseY-160, 80, 160); ctx.fillStyle = '#2040a0'; ctx.fillRect(x+20, baseY-140, 40, 20); ctx.fillStyle = '#0040ff'; for (let r = 0; r < 3; r++) { ctx.beginPath(); ctx.arc(x+40, baseY-100+r*30, 8, 0, Math.PI*2); ctx.fill(); } }); } // TEMPLO MALDITO runas
+    else { ctx.fillStyle = 'rgba(10,20,80,0.95)'; ctx.fillRect(0, 0, largura, CHAO_Y); for (let spi = 0; spi < 12; spi++) { const spx = (spi * 277 + Math.floor(tempo*0.3*spi*0.5)) % largura; const spy = 60 + Math.sin(tempo*0.06+spi)*100; ctx.globalAlpha = 0.6+Math.sin(tempo*0.1+spi)*0.3; ctx.fillStyle = '#c0d0ff'; ctx.beginPath(); ctx.arc(spx, spy, 14, 0, Math.PI); ctx.fill(); ctx.fillRect(spx-12, spy, 24, 18); ctx.fillStyle = '#040820'; ctx.fillRect(spx-6, spy-5, 4, 4); ctx.fillRect(spx+2, spy-5, 4, 4); ctx.globalAlpha = 1; } } // DIMENSÃO ESPECTRAL espíritos massivos
   ctx.restore();
 }
 
@@ -5682,13 +6150,13 @@ function atualizarVitoria() {
     ctx.fillText('MUNDO SALVO!', W/2, H/2 - 170);
     ctx.fillStyle = '#4f4';
     ctx.font = 'bold 36px Courier New';
-    ctx.fillText('ALL FOR ONE DERROTADO', W/2, H/2 - 115);
+    ctx.fillText('ESPÍRITO SUPREMO DERROTADO', W/2, H/2 - 115);
     ctx.fillStyle = '#fff';
     ctx.font = '18px Courier New';
-    ctx.fillText('Midoriya tornou-se LENDA.', W/2, H/2 - 80);
-    ctx.fillStyle = '#a0f';
+    ctx.fillText('Midoriya tornou-se LENDA. Todas as Sombras Dissipadas.', W/2, H/2 - 80);
+    ctx.fillStyle = '#80a0ff';
     ctx.font = 'bold 22px Courier New';
-    ctx.fillText('★ ARMADURA ALL FOR ONE DESBLOQUEADA ★', W/2, H/2 - 45);
+    ctx.fillText('★ ARMADURA ESPÍRITO SUPREMO DESBLOQUEADA ★', W/2, H/2 - 45);
     ctx.fillStyle = '#fc4';
     ctx.font = 'bold 22px Courier New';
     ctx.fillText('PONTUAÇÃO FINAL: ' + pontos +
