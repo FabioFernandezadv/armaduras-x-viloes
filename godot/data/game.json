@@ -1,0 +1,445 @@
+{
+  "starters": ["cavaleiro", "ninja", "robo", "mago_fogo", "mago_gelo", "mago_terra", "mago_vento"],
+  "story": [
+    "Há muito tempo... a cidade vivia em paz.",
+    "Até que UM VILÃO invadiu tudo.",
+    "Espalhou o caos.\nTrouxe a morte e a destruição.",
+    "Numa zona escondida da cidade,\nconstruiu a sua base secreta.",
+    "Os habitantes esconderam-se com medo.\nNinguém ajuda o herói.\nSó outros vilões apoiam o vilão.",
+    "Mas um único herói se levanta\ncontra a escuridão...",
+    "MIDORIYA.\nVeste a armadura.\nDefende a cidade."
+  ],
+  "lines": {
+    "DRAGÃO": "RUUUAAARRR! VAIS ARDER!",
+    "DEMÓNIO DE FOGO": "AS CHAMAS VÃO CONSUMIR-TE!",
+    "COMISSÁRIO CORRUPTO": "ESTÁS PRESO! PARA SEMPRE!",
+    "DOUTOR MUTANTE": "VOU OPERAR-TE... SEM ANESTESIA!",
+    "SHIGARAKI": "VAIS DESINTEGRAR-TE COMIGO!",
+    "GLITCH BOSS": "ERRO 404: HERÓI NÃO ENCONTRADO!",
+    "CHEF MUTANTE": "BEM-VINDO AO MENU DE HOJE: TU!",
+    "PALHAÇO DO MAL": "VAMOS DIVERTIR-NOS... ATÉ MORRERES!",
+    "PROFESSOR FANTASMA": "REPROVADO. PERMANENTEMENTE.",
+    "ALL FOR ONE": "EU SOU O VERDADEIRO MAL. PREPARA-TE.",
+    "PALHAÇO SOMBRIO": "O CIRCO COMEÇA... E TU ÉS O ESPECTÁCULO!",
+    "HOOLIGAN GIGANTE": "GOLO! NA TUA CARA, HERÓI!",
+    "PILOTO RENEGADO": "PREPARA-TE PARA A DESCOLAGEM... PARA O OUTRO LADO!",
+    "LOBO DAS SOMBRAS": "A FLORESTA ENGOLE-TE INTEIRO!",
+    "DRAGÃO FINAL": "EU SOU O FIM DE TUDO. NEM AS NUVENS TE SALVAM!",
+    "TUBARÃO TITÂNICO": "A PRAIA É MEU DOMÍNIO — E TU SERÁS O MEU ALMOÇO!",
+    "ESCULTOR DO CAOS": "VOU ESCULPIR A TUA DERROTA EM MÁRMORE ETERNO!",
+    "DR. NEUROTOXINA": "A CIÊNCIA NUNCA FALHA. E TU VAS PROVAR ISSO!",
+    "MAESTRO DO MAL": "ESTA NOITE, A SINFONIA DA TUA DESTRUIÇÃO COMEÇA!",
+    "ESPÍRITO SUPREMO": "EU EXISTO HÁ SÉCULOS. TU... NEM UM SEGUNDO MAIS!"
+  },
+  "armors": [
+    {"id": "cavaleiro", "name": "CAVALEIRO", "price": 0, "legs": "#2a4a8a", "body": "#3a6acc", "trim": "#aaaaaa"},
+    {"id": "ninja", "name": "NINJA", "price": 50, "legs": "#111111", "body": "#222222", "trim": "#cc2222"},
+    {"id": "robo", "name": "ROBÔ", "price": 100, "legs": "#888888", "body": "#bbbbbb", "trim": "#00ffff"},
+    {"id": "mago_fogo", "name": "MAGO DE FOGO", "price": 100, "legs": "#660000", "body": "#cc2200", "trim": "#ffcc00"},
+    {"id": "mago_gelo", "name": "MAGO DE GELO", "price": 150, "legs": "#224466", "body": "#4488cc", "trim": "#ccffff"},
+    {"id": "mago_terra", "name": "MAGO DE TERRA", "price": 200, "legs": "#443300", "body": "#774411", "trim": "#99cc00"},
+    {"id": "mago_vento", "name": "MAGO DE VENTO", "price": 250, "legs": "#227722", "body": "#44bb66", "trim": "#ffffff"},
+    {"id": "princesa", "name": "PRINCESA GUERREIRA", "price": 300, "legs": "#ffcc00", "body": "#ffcc00", "trim": "#ffffff"},
+    {"id": "samurai", "name": "SAMURAI", "price": 350, "legs": "#440000", "body": "#aa0000", "trim": "#ffffff"},
+    {"id": "elementar", "name": "ELEMENTAR ÁGUA & FOGO", "price": 400, "legs": "#440000", "body": "#aa0000", "trim": "#ffcc00"},
+    {"id": "angelical", "name": "ANGELICAL", "price": 700, "legs": "#dddccc", "body": "#ffffff", "trim": "#ffcc00"},
+    {"id": "dragao_supremo", "name": "DRAGÃO SUPREMO", "price": 1500, "legs": "#006633", "body": "#00aa44", "trim": "#ffcc00"},
+    {"id": "individualidade", "name": "INDIVIDUALIDADE", "price": 1200, "legs": "#006633", "body": "#00cc44", "trim": "#ffffff"},
+    {"id": "limitless", "name": "LIMITLESS", "price": 1800, "legs": "#000000", "body": "#ffffff", "trim": "#00ccff"},
+    {"id": "boss_dragao", "name": "DRAGÃO", "price": 200, "legs": "#400060", "body": "#7a2a8a", "trim": "#ffcc00"},
+    {"id": "boss_demonio", "name": "DEMÓNIO DE FOGO", "price": 250, "legs": "#660000", "body": "#cc4400", "trim": "#ffff00"},
+    {"id": "boss_comissario", "name": "COMISSÁRIO", "price": 300, "legs": "#001a40", "body": "#004488", "trim": "#ffcc00"},
+    {"id": "boss_doutor", "name": "DOUTOR MUTANTE", "price": 400, "legs": "#006633", "body": "#228866", "trim": "#ffffff"},
+    {"id": "boss_shigaraki", "name": "SHIGARAKI", "price": 800, "legs": "#000000", "body": "#222222", "trim": "#ff4444"},
+    {"id": "boss_glitch", "name": "GLITCH", "price": 350, "legs": "#330066", "body": "#660088", "trim": "#00ffff"},
+    {"id": "boss_chef", "name": "CHEF MUTANTE", "price": 450, "legs": "#888888", "body": "#ffffff", "trim": "#aa4444"},
+    {"id": "boss_palhaco", "name": "PALHAÇO DO MAL", "price": 600, "legs": "#440000", "body": "#cc0000", "trim": "#ffcc00"},
+    {"id": "boss_professor", "name": "PROFESSOR FANTASMA", "price": 700, "legs": "#000000", "body": "#006633", "trim": "#ffffff"},
+    {"id": "boss_afo", "name": "ALL FOR ONE", "price": 2000, "legs": "#000000", "body": "#1a0030", "trim": "#aa00ff"},
+    {"id": "boss_clown", "name": "PALHAÇO SOMBRIO", "price": 850, "legs": "#600040", "body": "#aa0088", "trim": "#ffcc00"},
+    {"id": "boss_hooligan", "name": "HOOLIGAN GIGANTE", "price": 950, "legs": "#002200", "body": "#006633", "trim": "#ffffff"},
+    {"id": "boss_piloto", "name": "PILOTO RENEGADO", "price": 1100, "legs": "#222244", "body": "#444466", "trim": "#00ffff"},
+    {"id": "boss_lobo", "name": "LOBO DAS SOMBRAS", "price": 1300, "legs": "#001100", "body": "#002200", "trim": "#ff0000"},
+    {"id": "boss_dragao_final", "name": "DRAGÃO FINAL", "price": 2500, "legs": "#440000", "body": "#8800ff", "trim": "#ffcc00"},
+    {"id": "boss_tubarao", "name": "TUBARÃO TITÂNICO", "price": 3000, "legs": "#083040", "body": "#0a6080", "trim": "#ff6600"},
+    {"id": "boss_escultor", "name": "ESCULTOR DO CAOS", "price": 3500, "legs": "#301030", "body": "#804080", "trim": "#e0c0ff"},
+    {"id": "boss_neurotoxina", "name": "DR. NEUROTOXINA", "price": 4000, "legs": "#003020", "body": "#00a060", "trim": "#80ffc0"},
+    {"id": "boss_maestro", "name": "MAESTRO DO MAL", "price": 4500, "legs": "#300010", "body": "#a00050", "trim": "#ff4080"},
+    {"id": "boss_espirito", "name": "ESPÍRITO SUPREMO", "price": 6000, "legs": "#050818", "body": "#204080", "trim": "#c0d0ff"}
+  ],
+  "phases": [
+    {
+      "name": "CASA", "n": 1, "width": 2000, "music": "fase1-musica.mp3", "bg": "fase1-casa-bg.png",
+      "cut_name": "SHIGARAKI", "cut": "ESTA CIDADE VAI CAIR, MIDORIYA!",
+      "reward": "boss_dragao", "final": false, "shot": "orb",
+      "grade": [0.47, 0.27, 0.12, 0.10], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#1a2744", "ground": "#3a2818", "mob": "#6a2a2a", "flyer": "#ffcc00",
+      "sub_c": "#7a2a8a", "sub_n": "CRIA DO DRAGÃO",
+      "rooms": ["SALA", "COZINHA", "QUARTO PAIS", "QUARTO LUÍS", "JARDIM"],
+      "platforms": [[420, 80, 120, 14], [820, 130, 100, 14], [1280, 100, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 500, "hp": 2}, {"k": "m", "x": 700, "hp": 2},
+        {"k": "m", "x": 950, "hp": 3}, {"k": "m", "x": 1200, "hp": 3},
+        {"k": "m", "x": 1400, "hp": 2},
+        {"k": "d", "x": 1700, "hp": 8, "c": "#7a2a8a", "name": "DRAGÃO"}
+      ]
+    },
+    {
+      "name": "QUARTEL DE BOMBEIROS", "n": 2, "width": 2200, "music": "fase2-musica.mp3", "bg": "fase2-bombeiros-bg.png",
+      "cut_name": "SHIGARAKI", "cut": "OS BOMBEIROS NÃO TE VÃO SALVAR!",
+      "reward": "boss_demonio", "final": false, "shot": "flame",
+      "grade": [1.0, 0.31, 0.0, 0.13], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#3a1408", "ground": "#2a1810", "mob": "#aa4444", "flyer": "#ff8800",
+      "sub_c": "#cc4400", "sub_n": "BRASA",
+      "rooms": ["GARAGEM", "DORMITÓRIO", "SALA TREINO", "TELHADO", "INCÊNDIO RUA"],
+      "platforms": [[500, 90, 100, 14], [900, 140, 110, 14], [1350, 90, 120, 14], [1700, 220, 110, 14]],
+      "ladders": [[800, 220, 28], [1690, 220, 28]],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 3, "c": "#aa4444"}, {"k": "v", "x": 700, "c": "#ff8800"},
+        {"k": "m", "x": 900, "hp": 3, "c": "#aa4444"}, {"k": "v", "x": 1100, "c": "#ff8800"},
+        {"k": "m", "x": 1300, "hp": 4, "c": "#aa4444"}, {"k": "m", "x": 1500, "hp": 4, "c": "#aa4444"},
+        {"k": "v", "x": 1700, "c": "#ff8800"},
+        {"k": "d", "x": 1950, "hp": 14, "c": "#cc4400", "name": "DEMÓNIO DE FOGO"}
+      ]
+    },
+    {
+      "name": "ESQUADRA DA POLÍCIA", "n": 3, "width": 2400, "music": "fase3-musica.mp3", "bg": "fase3-policia-bg.png",
+      "cut_name": "SHIGARAKI", "cut": "A LEI AGORA SOU EU, MIDORIYA!",
+      "reward": "boss_comissario", "final": false, "shot": "bullet",
+      "grade": [0.16, 0.24, 0.71, 0.16], "dark": 0.55, "fog": [0.0, 0.03, 0.12],
+      "sky": "#0a1028", "ground": "#1a2030", "mob": "#224466", "flyer": "#4488ff",
+      "sub_c": "#004488", "sub_n": "AGENTE",
+      "rooms": ["RECEPÇÃO", "CELAS", "INTERROGATÓRIO", "ARMARIA", "PÁTIO"],
+      "platforms": [[550, 100, 120, 14], [950, 150, 100, 14], [1350, 100, 120, 14], [1750, 150, 100, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 400, "hp": 4, "c": "#224466"}, {"k": "m", "x": 600, "hp": 4, "c": "#224466"},
+        {"k": "v", "x": 800, "c": "#4488ff"}, {"k": "m", "x": 1000, "hp": 5, "c": "#224466"},
+        {"k": "v", "x": 1200, "c": "#4488ff"}, {"k": "m", "x": 1400, "hp": 5, "c": "#224466"},
+        {"k": "m", "x": 1600, "hp": 5, "c": "#224466"}, {"k": "v", "x": 1800, "c": "#4488ff"},
+        {"k": "d", "x": 2150, "hp": 16, "c": "#004488", "name": "COMISSÁRIO CORRUPTO"}
+      ]
+    },
+    {
+      "name": "HOSPITAL", "n": 4, "width": 2400, "music": "fase4-musica.mp3", "bg": "",
+      "cut_name": "SHIGARAKI", "cut": "NEM OS DOUTORES TE VÃO CURAR DESTA!",
+      "reward": "boss_doutor", "final": false, "shot": "syringe",
+      "grade": [0.0, 0.78, 0.71, 0.12], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#0c2428", "ground": "#d8e4e2", "mob": "#88aa44", "flyer": "#ffffff",
+      "sub_c": "#228866", "sub_n": "ENFERMEIRO",
+      "rooms": ["RECEPÇÃO", "ENFERMARIA", "BLOCO OP.", "UCI", "HELIPORTO"],
+      "platforms": [[500, 90, 120, 14], [950, 140, 100, 14], [1400, 100, 120, 14], [1800, 150, 100, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 5, "c": "#88aa44"}, {"k": "v", "x": 650, "c": "#ffffff"},
+        {"k": "m", "x": 850, "hp": 5, "c": "#88aa44"}, {"k": "v", "x": 1050, "c": "#ffffff"},
+        {"k": "m", "x": 1250, "hp": 6, "c": "#88aa44"}, {"k": "v", "x": 1450, "c": "#ffffff"},
+        {"k": "m", "x": 1650, "hp": 6, "c": "#88aa44"}, {"k": "v", "x": 1850, "c": "#ffffff"},
+        {"k": "d", "x": 2150, "hp": 18, "c": "#228866", "name": "DOUTOR MUTANTE"}
+      ]
+    },
+    {
+      "name": "SUPERMERCADO", "n": 5, "width": 2600, "music": "fase5-musica.mp3", "bg": "",
+      "cut_name": "SHIGARAKI", "cut": "AQUI ACABA A TUA HISTÓRIA, HERÓI!",
+      "reward": "boss_shigaraki", "final": false, "shot": "decay",
+      "grade": [1.0, 0.86, 0.31, 0.10], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#2a2410", "ground": "#4a4030", "mob": "#cc8844", "flyer": "#ff44aa",
+      "sub_c": "#444444", "sub_n": "CAPANGA",
+      "rooms": ["ENTRADA", "TALHO", "PADARIA", "FRIGORÍFICOS", "ARMAZÉM"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 100, 120, 14], [1900, 150, 100, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 5, "c": "#cc8844"}, {"k": "m", "x": 650, "hp": 5, "c": "#cc8844"},
+        {"k": "v", "x": 900, "c": "#ff44aa"}, {"k": "m", "x": 1100, "hp": 6, "c": "#cc8844"},
+        {"k": "v", "x": 1350, "c": "#ff44aa"}, {"k": "m", "x": 1550, "hp": 6, "c": "#cc8844"},
+        {"k": "v", "x": 1800, "c": "#ff44aa"}, {"k": "m", "x": 2000, "hp": 7, "c": "#cc8844"},
+        {"k": "s", "x": 2400}
+      ]
+    },
+    {
+      "name": "FLIPERAMA", "n": 6, "width": 2400, "music": "fase6-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "PENSAS QUE VENCESTE? A VERDADEIRA AMEAÇA AINDA NÃO APARECEU!",
+      "reward": "boss_glitch", "final": false, "shot": "glitch",
+      "grade": [0.63, 0.0, 1.0, 0.18], "dark": 0.70, "fog": [0.08, 0.0, 0.16],
+      "sky": "#140018", "ground": "#201028", "mob": "#aa44ff", "flyer": "#00ffff",
+      "sub_c": "#660088", "sub_n": "BUG",
+      "rooms": ["ENTRADA", "PINBALL", "ARCADE", "KARAOKE", "VIP"],
+      "platforms": [[500, 100, 120, 14], [950, 150, 100, 14], [1400, 100, 120, 14], [1850, 150, 100, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 6, "c": "#aa44ff"}, {"k": "v", "x": 650, "c": "#00ffff"},
+        {"k": "m", "x": 900, "hp": 6, "c": "#aa44ff"}, {"k": "v", "x": 1150, "c": "#00ffff"},
+        {"k": "m", "x": 1350, "hp": 7, "c": "#aa44ff"}, {"k": "v", "x": 1550, "c": "#00ffff"},
+        {"k": "m", "x": 1750, "hp": 7, "c": "#aa44ff"}, {"k": "v", "x": 1950, "c": "#00ffff"},
+        {"k": "d", "x": 2200, "hp": 20, "c": "#660088", "name": "GLITCH BOSS"}
+      ]
+    },
+    {
+      "name": "RESTAURANTE", "n": 7, "width": 2500, "music": "fase7-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "O JANTAR ESTÁ SERVIDO... E ÉS TU O PRATO PRINCIPAL!",
+      "reward": "boss_chef", "final": false, "shot": "knife",
+      "grade": [0.55, 0.12, 0.20, 0.15], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#2a1014", "ground": "#3a2420", "mob": "#aa5555", "flyer": "#ffcc00",
+      "sub_c": "#882222", "sub_n": "MARMITÃO",
+      "rooms": ["SALÃO", "COZINHA", "ADEGA", "ESPLANADA", "COZINHA CHEF"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 100, 120, 14], [1850, 150, 100, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 6, "c": "#aa5555"}, {"k": "m", "x": 650, "hp": 6, "c": "#aa5555"},
+        {"k": "v", "x": 900, "c": "#ffcc00"}, {"k": "m", "x": 1100, "hp": 7, "c": "#aa5555"},
+        {"k": "v", "x": 1350, "c": "#ffcc00"}, {"k": "m", "x": 1550, "hp": 7, "c": "#aa5555"},
+        {"k": "m", "x": 1750, "hp": 8, "c": "#aa5555"}, {"k": "v", "x": 1950, "c": "#ffcc00"},
+        {"k": "d", "x": 2250, "hp": 22, "c": "#882222", "name": "CHEF MUTANTE"}
+      ]
+    },
+    {
+      "name": "McDONALD'S", "n": 8, "width": 2500, "music": "fase8-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "TENS UM HAPPY MEAL DE DOR À TUA ESPERA, HERÓI!",
+      "reward": "boss_palhaco", "final": false, "shot": "bomb",
+      "grade": [1.0, 0.55, 0.0, 0.12], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#3a1808", "ground": "#5a3018", "mob": "#ff4400", "flyer": "#ffcc00",
+      "sub_c": "#cc0000", "sub_n": "PIERROT",
+      "rooms": ["BALCÃO", "COZINHA", "DRIVE-THRU", "PLAYGROUND", "CÂMARA FRIA"],
+      "platforms": [[500, 100, 120, 14], [950, 150, 100, 14], [1400, 100, 120, 14], [1850, 150, 100, 14], [2150, 100, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 7, "c": "#ff4400"}, {"k": "v", "x": 650, "c": "#ffcc00"},
+        {"k": "m", "x": 900, "hp": 7, "c": "#ff4400"}, {"k": "v", "x": 1100, "c": "#ffcc00"},
+        {"k": "m", "x": 1300, "hp": 8, "c": "#ff4400"}, {"k": "v", "x": 1500, "c": "#ffcc00"},
+        {"k": "m", "x": 1700, "hp": 8, "c": "#ff4400"}, {"k": "v", "x": 1900, "c": "#ffcc00"},
+        {"k": "m", "x": 2100, "hp": 9, "c": "#ff4400"},
+        {"k": "d", "x": 2300, "hp": 24, "c": "#cc0000", "name": "PALHAÇO DO MAL"}
+      ]
+    },
+    {
+      "name": "ESCOLA", "n": 9, "width": 2600, "music": "fase9-musica.mp3", "bg": "fase9-escola-bg.png",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "A LIÇÃO DE HOJE: COMO PERDER PARA SEMPRE!",
+      "reward": "boss_professor", "final": false, "shot": "ruler",
+      "grade": [0.24, 0.55, 0.24, 0.10], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#102018", "ground": "#2a3828", "mob": "#228866", "flyer": "#ffffff",
+      "sub_c": "#006633", "sub_n": "ALUNO ESPECTRAL",
+      "rooms": ["RECREIO", "SALA AULA", "BIBLIOTECA", "GINÁSIO", "SÓTÃO"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 100, 120, 14], [1900, 150, 100, 14], [2200, 100, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 7, "c": "#228866"}, {"k": "m", "x": 650, "hp": 7, "c": "#228866"},
+        {"k": "v", "x": 900, "c": "#ffffff"}, {"k": "m", "x": 1100, "hp": 8, "c": "#228866"},
+        {"k": "v", "x": 1350, "c": "#ffffff"}, {"k": "m", "x": 1550, "hp": 8, "c": "#228866"},
+        {"k": "m", "x": 1750, "hp": 9, "c": "#228866"}, {"k": "v", "x": 1950, "c": "#ffffff"},
+        {"k": "m", "x": 2150, "hp": 9, "c": "#228866"},
+        {"k": "d", "x": 2350, "hp": 26, "c": "#006633", "name": "PROFESSOR FANTASMA"}
+      ]
+    },
+    {
+      "name": "BASE DOS VILÕES", "n": 10, "width": 2800, "music": "fase10-musica.mp3", "bg": "fase10-base-bg.png",
+      "cut_name": "ALL FOR ONE", "cut": "BEM-VINDO À MINHA BASE, MIDORIYA. AGORA CONHECE O VERDADEIRO MAL!",
+      "reward": "boss_afo", "final": false, "shot": "energy",
+      "grade": [0.63, 0.0, 0.86, 0.20], "dark": 0.75, "fog": [0.08, 0.0, 0.12],
+      "sky": "#100018", "ground": "#180820", "mob": "#aa00ff", "flyer": "#ff00ff",
+      "sub_c": "#1a0030", "sub_n": "GUARDA AFO",
+      "rooms": ["ENTRADA", "LABORATÓRIO", "SALA AFO", "ARENA", "TRONO"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 100, 120, 14], [1900, 150, 100, 14], [2300, 100, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 8, "c": "#aa00ff"}, {"k": "v", "x": 650, "c": "#ff00ff"},
+        {"k": "m", "x": 850, "hp": 8, "c": "#aa00ff"}, {"k": "v", "x": 1050, "c": "#ff00ff"},
+        {"k": "m", "x": 1250, "hp": 9, "c": "#aa00ff"}, {"k": "v", "x": 1450, "c": "#ff00ff"},
+        {"k": "m", "x": 1650, "hp": 10, "c": "#aa00ff"}, {"k": "v", "x": 1850, "c": "#ff00ff"},
+        {"k": "m", "x": 2050, "hp": 10, "c": "#aa00ff"}, {"k": "v", "x": 2250, "c": "#ff00ff"},
+        {"k": "a", "x": 2550}
+      ]
+    },
+    {
+      "name": "PARQUE DE DIVERSÕES", "n": 11, "width": 2700, "music": "fase6-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "O AFO CAIU... MAS UM PALHAÇO MUITO PIOR ESPERA-TE NA RODA GIGANTE!",
+      "reward": "boss_clown", "final": false, "shot": "bomb",
+      "grade": [1.0, 0.31, 0.78, 0.16], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#281018", "ground": "#301820", "mob": "#ff44aa", "flyer": "#ffcc00",
+      "sub_c": "#aa0088", "sub_n": "PALHAÇO JÚNIOR",
+      "rooms": ["BILHETEIRA", "CARROSSEL", "CASA ESPELHOS", "MONTANHA-RUSSA", "RODA GIGANTE"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 110, 120, 14], [1900, 180, 100, 14], [2300, 100, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 9, "c": "#ff44aa"}, {"k": "v", "x": 650, "c": "#ffcc00"},
+        {"k": "m", "x": 900, "hp": 9, "c": "#ff44aa"}, {"k": "v", "x": 1150, "c": "#00ffff"},
+        {"k": "m", "x": 1350, "hp": 10, "c": "#ff44aa"}, {"k": "v", "x": 1550, "c": "#ffcc00"},
+        {"k": "m", "x": 1750, "hp": 10, "c": "#ff44aa"}, {"k": "v", "x": 1950, "c": "#00ffff"},
+        {"k": "m", "x": 2150, "hp": 11, "c": "#ff44aa"},
+        {"k": "d", "x": 2450, "hp": 28, "c": "#aa0088", "name": "PALHAÇO SOMBRIO"}
+      ]
+    },
+    {
+      "name": "ESTÁDIO DE FUTEBOL", "n": 12, "width": 2700, "music": "fase2-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "NEM COM TODOS OS GOLOS DO MUNDO ESCAPAS DESTE HOOLIGAN!",
+      "reward": "boss_hooligan", "final": false, "shot": "ball",
+      "grade": [0.24, 0.78, 0.31, 0.12], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#102010", "ground": "#1a4a20", "mob": "#00aa44", "flyer": "#ffffff",
+      "sub_c": "#006633", "sub_n": "ULTRA FÃ",
+      "rooms": ["BILHETEIRA", "BALNEÁRIOS", "BANCADAS", "RELVA", "TÚNEL"],
+      "platforms": [[550, 100, 120, 14], [1000, 150, 100, 14], [1450, 100, 120, 14], [1900, 150, 100, 14], [2300, 110, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 10, "c": "#00aa44"}, {"k": "m", "x": 650, "hp": 10, "c": "#00aa44"},
+        {"k": "v", "x": 900, "c": "#ffffff"}, {"k": "m", "x": 1100, "hp": 11, "c": "#00aa44"},
+        {"k": "v", "x": 1350, "c": "#ffcc00"}, {"k": "m", "x": 1550, "hp": 11, "c": "#00aa44"},
+        {"k": "m", "x": 1750, "hp": 12, "c": "#00aa44"}, {"k": "v", "x": 1950, "c": "#ffffff"},
+        {"k": "m", "x": 2150, "hp": 12, "c": "#00aa44"},
+        {"k": "d", "x": 2450, "hp": 30, "c": "#006633", "name": "HOOLIGAN GIGANTE"}
+      ]
+    },
+    {
+      "name": "AEROPORTO", "n": 13, "width": 2800, "music": "fase5-musica.mp3", "bg": "",
+      "cut_name": "VOZ DESCONHECIDA", "cut": "A ÚLTIMA DESCOLAGEM... É A TUA, MIDORIYA!",
+      "reward": "boss_piloto", "final": false, "shot": "bullet",
+      "grade": [0.78, 0.86, 1.0, 0.10], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#102030", "ground": "#303840", "mob": "#8888aa", "flyer": "#aaaaff",
+      "sub_c": "#444466", "sub_n": "CO-PILOTO",
+      "rooms": ["CHECK-IN", "DUTY FREE", "PISTA", "HANGAR", "TORRE CONTROLO"],
+      "platforms": [[550, 110, 120, 14], [1000, 160, 100, 14], [1450, 110, 120, 14], [1900, 200, 110, 14], [2350, 130, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 11, "c": "#8888aa"}, {"k": "v", "x": 650, "c": "#aaaaff"},
+        {"k": "m", "x": 850, "hp": 11, "c": "#8888aa"}, {"k": "v", "x": 1100, "c": "#aaaaff"},
+        {"k": "m", "x": 1300, "hp": 12, "c": "#8888aa"}, {"k": "v", "x": 1550, "c": "#ffffff"},
+        {"k": "m", "x": 1750, "hp": 12, "c": "#8888aa"}, {"k": "v", "x": 1950, "c": "#aaaaff"},
+        {"k": "m", "x": 2150, "hp": 13, "c": "#8888aa"},
+        {"k": "d", "x": 2550, "hp": 32, "c": "#444466", "name": "PILOTO RENEGADO"}
+      ]
+    },
+    {
+      "name": "FLORESTA ENCANTADA", "n": 14, "width": 2900, "music": "fase9-musica.mp3", "bg": "",
+      "cut_name": "VOZ ANTIGA", "cut": "NESTAS ÁRVORES, OS HERÓIS PERDEM-SE PARA SEMPRE...",
+      "reward": "boss_lobo", "final": false, "shot": "claw",
+      "grade": [0.08, 0.31, 0.16, 0.20], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#06140c", "ground": "#143018", "mob": "#006633", "flyer": "#00cc44",
+      "sub_c": "#002200", "sub_n": "LOBISOMEM",
+      "rooms": ["TRILHO", "LAGO", "CLAREIRA", "CAVERNA", "ÁRVORE ANCIÃ"],
+      "platforms": [[500, 100, 120, 14], [900, 160, 100, 14], [1350, 110, 120, 14], [1800, 200, 110, 14], [2300, 130, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 12, "c": "#006633"}, {"k": "v", "x": 650, "c": "#00cc44"},
+        {"k": "m", "x": 900, "hp": 12, "c": "#006633"}, {"k": "v", "x": 1150, "c": "#00cc44"},
+        {"k": "m", "x": 1350, "hp": 13, "c": "#006633"}, {"k": "v", "x": 1550, "c": "#00cc44"},
+        {"k": "m", "x": 1750, "hp": 13, "c": "#006633"}, {"k": "v", "x": 1950, "c": "#00cc44"},
+        {"k": "m", "x": 2200, "hp": 14, "c": "#006633"},
+        {"k": "d", "x": 2650, "hp": 34, "c": "#002200", "name": "LOBO DAS SOMBRAS"}
+      ]
+    },
+    {
+      "name": "CASTELO NAS NUVENS", "n": 15, "width": 3000, "music": "fase10-musica.mp3", "bg": "",
+      "cut_name": "VOZ ANCESTRAL", "cut": "CHEGASTE AO TOPO. AGORA ENFRENTAS A ÚLTIMA AMEAÇA: O DRAGÃO FINAL!",
+      "reward": "boss_dragao_final", "final": false, "shot": "flame",
+      "grade": [0.71, 0.71, 1.0, 0.18], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#203058", "ground": "#c8d0e8", "mob": "#8888ff", "flyer": "#ffffff",
+      "sub_c": "#8800ff", "sub_n": "DRAGÃO MENOR",
+      "rooms": ["PONTE", "SALÃO TRONO", "TORRE NORTE", "TORRE SUL", "TOPO CÉU"],
+      "platforms": [[500, 120, 120, 14], [950, 180, 100, 14], [1400, 120, 120, 14], [1850, 220, 110, 14], [2400, 150, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 13, "c": "#8888ff"}, {"k": "v", "x": 650, "c": "#ffffff"},
+        {"k": "m", "x": 850, "hp": 13, "c": "#8888ff"}, {"k": "v", "x": 1050, "c": "#ffffff"},
+        {"k": "m", "x": 1250, "hp": 14, "c": "#8888ff"}, {"k": "v", "x": 1450, "c": "#ffffff"},
+        {"k": "m", "x": 1650, "hp": 14, "c": "#8888ff"}, {"k": "v", "x": 1850, "c": "#ffffff"},
+        {"k": "m", "x": 2050, "hp": 15, "c": "#8888ff"}, {"k": "v", "x": 2250, "c": "#ffffff"},
+        {"k": "d", "x": 2750, "hp": 40, "c": "#8800ff", "name": "DRAGÃO FINAL"}
+      ]
+    },
+    {
+      "name": "PRAIA", "n": 16, "width": 2900, "music": "fase8-musica.mp3", "bg": "",
+      "cut_name": "VOZ DO MAR", "cut": "O DRAGÃO FINAL CAIU... MAS O MAR ESCONDE HORRORES PIORES!",
+      "reward": "boss_tubarao", "final": false, "shot": "water",
+      "grade": [1.0, 0.63, 0.0, 0.14], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#1a4060", "ground": "#c8a060", "mob": "#ff8800", "flyer": "#ffcc00",
+      "sub_c": "#ff6600", "sub_n": "TUBARÃO",
+      "rooms": ["ENTRADA PRAIA", "MERGULHO", "GRUTA SUBAQUÁTICA", "NAUFRÁGIO", "ALTO MAR"],
+      "platforms": [[500, 100, 120, 14], [950, 160, 100, 14], [1400, 100, 120, 14], [1900, 180, 100, 14], [2400, 130, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 14, "c": "#ff8800"}, {"k": "v", "x": 650, "c": "#ffcc00"},
+        {"k": "m", "x": 900, "hp": 14, "c": "#ff8800"}, {"k": "v", "x": 1150, "c": "#ffff00"},
+        {"k": "m", "x": 1350, "hp": 15, "c": "#ff8800"}, {"k": "v", "x": 1550, "c": "#ffcc00"},
+        {"k": "m", "x": 1750, "hp": 15, "c": "#ff8800"}, {"k": "v", "x": 1950, "c": "#ffff00"},
+        {"k": "m", "x": 2150, "hp": 16, "c": "#ff8800"}, {"k": "v", "x": 2350, "c": "#ffcc00"},
+        {"k": "d", "x": 2650, "hp": 42, "c": "#ff6600", "name": "TUBARÃO TITÂNICO"}
+      ]
+    },
+    {
+      "name": "MUSEU DE ARTE", "n": 17, "width": 2900, "music": "fase7-musica.mp3", "bg": "",
+      "cut_name": "VOZ ELEGANTE", "cut": "A ARTE MAIS BELA SERÁ A TUA QUEDA, MIDORIYA!",
+      "reward": "boss_escultor", "final": false, "shot": "marble",
+      "grade": [0.39, 0.16, 0.47, 0.16], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#1a1020", "ground": "#2a2030", "mob": "#804080", "flyer": "#c080ff",
+      "sub_c": "#804080", "sub_n": "ESCULTURA",
+      "rooms": ["HALL ENTRADA", "GALERIA PINTURA", "SALA ESCULTURA", "COFRE", "TECTO ABERTO"],
+      "platforms": [[500, 110, 120, 14], [950, 170, 100, 14], [1400, 110, 120, 14], [1900, 200, 100, 14], [2450, 140, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 15, "c": "#804080"}, {"k": "v", "x": 650, "c": "#c080ff"},
+        {"k": "m", "x": 900, "hp": 15, "c": "#804080"}, {"k": "v", "x": 1150, "c": "#c080ff"},
+        {"k": "m", "x": 1350, "hp": 16, "c": "#804080"}, {"k": "v", "x": 1550, "c": "#ff80c0"},
+        {"k": "m", "x": 1750, "hp": 16, "c": "#804080"}, {"k": "v", "x": 1950, "c": "#c080ff"},
+        {"k": "m", "x": 2150, "hp": 17, "c": "#804080"}, {"k": "v", "x": 2350, "c": "#ff80c0"},
+        {"k": "d", "x": 2650, "hp": 45, "c": "#804080", "name": "ESCULTOR DO CAOS"}
+      ]
+    },
+    {
+      "name": "LABORATÓRIO SECRETO", "n": 18, "width": 3000, "music": "fase3-musica.mp3", "bg": "",
+      "cut_name": "DR. NEUROTOXINA", "cut": "ANOS DE EXPERIÊNCIAS... E TU SERÁS O MEU SUJEITO FINAL!",
+      "reward": "boss_neurotoxina", "final": false, "shot": "syringe",
+      "grade": [0.0, 0.71, 0.39, 0.18], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#041810", "ground": "#102820", "mob": "#00a060", "flyer": "#00ff80",
+      "sub_c": "#008040", "sub_n": "MUTANTE",
+      "rooms": ["LABORATÓRIO", "CÂMARA TÓXICA", "SALA MUTANTES", "REACTOR", "NÚCLEO CENTRAL"],
+      "platforms": [[550, 110, 120, 14], [1000, 180, 100, 14], [1500, 120, 120, 14], [2000, 210, 100, 14], [2500, 150, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 16, "c": "#00a060"}, {"k": "v", "x": 650, "c": "#00ff80"},
+        {"k": "m", "x": 850, "hp": 16, "c": "#00a060"}, {"k": "v", "x": 1100, "c": "#00ff80"},
+        {"k": "m", "x": 1300, "hp": 17, "c": "#00a060"}, {"k": "v", "x": 1550, "c": "#80ffc0"},
+        {"k": "m", "x": 1750, "hp": 17, "c": "#00a060"}, {"k": "v", "x": 1950, "c": "#00ff80"},
+        {"k": "m", "x": 2200, "hp": 18, "c": "#00a060"}, {"k": "v", "x": 2450, "c": "#80ffc0"},
+        {"k": "d", "x": 2750, "hp": 48, "c": "#008040", "name": "DR. NEUROTOXINA"}
+      ]
+    },
+    {
+      "name": "TEATRO SOMBRIO", "n": 19, "width": 3000, "music": "fase4-musica.mp3", "bg": "",
+      "cut_name": "MAESTRO DO MAL", "cut": "O ESPECTÁCULO COMEÇA... E NUNCA VAI TERMINAR PARA TI!",
+      "reward": "boss_maestro", "final": false, "shot": "notes",
+      "grade": [0.71, 0.0, 0.24, 0.18], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#200010", "ground": "#301018", "mob": "#a00050", "flyer": "#ff4080",
+      "sub_c": "#800040", "sub_n": "SOMBRA",
+      "rooms": ["FOYER", "BASTIDORES", "PALCO", "CAMARINS", "FOSSO ORQUESTRA"],
+      "platforms": [[550, 120, 120, 14], [1050, 180, 100, 14], [1550, 130, 120, 14], [2050, 220, 100, 14], [2600, 160, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 17, "c": "#a00050"}, {"k": "v", "x": 650, "c": "#ff4080"},
+        {"k": "m", "x": 900, "hp": 17, "c": "#a00050"}, {"k": "v", "x": 1150, "c": "#ff4080"},
+        {"k": "m", "x": 1350, "hp": 18, "c": "#a00050"}, {"k": "v", "x": 1600, "c": "#ff80a0"},
+        {"k": "m", "x": 1800, "hp": 18, "c": "#a00050"}, {"k": "v", "x": 2050, "c": "#ff4080"},
+        {"k": "m", "x": 2250, "hp": 19, "c": "#a00050"}, {"k": "v", "x": 2500, "c": "#ff80a0"},
+        {"k": "d", "x": 2800, "hp": 52, "c": "#800040", "name": "MAESTRO DO MAL"}
+      ]
+    },
+    {
+      "name": "CIDADE FANTASMA", "n": 20, "width": 3200, "music": "fase10-musica.mp3", "bg": "",
+      "cut_name": "ESPÍRITO SUPREMO", "cut": "EU ESTIVE SEMPRE AQUI. NAS SOMBRAS. NO VENTO. EM TODO O LADO. E AGORA CHEGO ATÉ TI.",
+      "reward": "boss_espirito", "final": true, "shot": "energy",
+      "grade": [0.08, 0.16, 0.47, 0.22], "dark": 0, "fog": [0, 0, 0],
+      "sky": "#060814", "ground": "#101828", "mob": "#204080", "flyer": "#80a0ff",
+      "sub_c": "#102060", "sub_n": "ESPECTRO",
+      "rooms": ["RUA ABANDONADA", "EDIFÍCIO SOMBRIO", "SUBTERRÂNEO", "TEMPLO MALDITO", "DIMENSÃO ESPECTRAL"],
+      "platforms": [[550, 130, 120, 14], [1100, 200, 110, 14], [1650, 140, 120, 14], [2200, 240, 110, 14], [2800, 170, 120, 14]],
+      "ladders": [],
+      "spawns": [
+        {"k": "m", "x": 450, "hp": 18, "c": "#204080"}, {"k": "v", "x": 650, "c": "#80a0ff"},
+        {"k": "m", "x": 850, "hp": 18, "c": "#204080"}, {"k": "v", "x": 1100, "c": "#80a0ff"},
+        {"k": "m", "x": 1350, "hp": 19, "c": "#204080"}, {"k": "v", "x": 1600, "c": "#c0d0ff"},
+        {"k": "m", "x": 1850, "hp": 19, "c": "#204080"}, {"k": "v", "x": 2100, "c": "#80a0ff"},
+        {"k": "m", "x": 2350, "hp": 20, "c": "#204080"}, {"k": "v", "x": 2600, "c": "#c0d0ff"},
+        {"k": "m", "x": 2800, "hp": 20, "c": "#204080"},
+        {"k": "d", "x": 3000, "hp": 60, "c": "#102060", "name": "ESPÍRITO SUPREMO"}
+      ]
+    }
+  ]
+}
