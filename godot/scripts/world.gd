@@ -1,6 +1,7 @@
 extends Node2D
 
 const Cat = preload("res://scripts/catalog.gd")
+const Sprites = preload("res://scripts/sprites.gd")
 
 var phase_i := 0
 var sub := 0
@@ -772,159 +773,78 @@ func _draw() -> void:
 	draw_rect(Rect2(0, Cat.FLOOR, width, Cat.VIEW_H - Cat.FLOOR), Cat.colorize(str(ph["ground"])))
 	_draw_props(ph, width)
 	for lad in ladders():
-		draw_rect(Rect2(lad["x"], lad["y_top"], lad["w"], lad["y_bot"] - lad["y_top"]), Color("#9a9a9a"))
-	for p in platforms():
-		draw_rect(Rect2(p["x"], p["y"] + 3, p["w"], p["h"]), Color("#3a2818"))
-		draw_rect(Rect2(p["x"], p["y"], p["w"], maxf(4.0, p["h"] - 3)), Color("#7a5832"))
+		var lx: float = lad["x"]
+		var top: float = lad["y_top"]
+		var bot: float = lad["y_bot"]
+		var lw: float = lad["w"]
+		draw_rect(Rect2(lx, top, 5, bot - top), Color("#3e3e46"))
+		draw_rect(Rect2(lx + lw - 5, top, 5, bot - top), Color("#3e3e46"))
+		draw_rect(Rect2(lx + 1, top, 3, bot - top), Color("#c4c4ce"))
+		draw_rect(Rect2(lx + lw - 4, top, 3, bot - top), Color("#c4c4ce"))
+		var yy := top + 8.0
+		while yy < bot - 4.0:
+			draw_rect(Rect2(lx, yy, lw, 3), Color("#9a9aa6"))
+			yy += 16.0
+	for plat in platforms():
+		var px: float = plat["x"]
+		var py: float = plat["y"]
+		var pw: float = plat["w"]
+		var tall: float = plat["h"]
+		draw_rect(Rect2(px - 2, py - 2, pw + 4, tall + 5), Color(0.09, 0.05, 0.03, 0.92))
+		draw_rect(Rect2(px, py, pw, tall), Color("#6a4326"))
+		draw_rect(Rect2(px, py, pw, 3), Color("#e0a15c"))
+		draw_rect(Rect2(px + 3, py + tall - 3, pw - 6, 2), Color(0, 0, 0, 0.28))
 	for pk in pickups:
-		_draw_pickup(pk)
+		Sprites.pickup(self, pk)
+	var hero_x: float = hero["x"]
 	for e in enemies:
-		_draw_enemy(e)
-	for p in projectiles:
-		_draw_shot(p, true)
+		Sprites.enemy(self, e, time, hero_x)
+	for proj in projectiles:
+		Sprites.shot(self, proj, true, time)
 	for pe in shots:
-		_draw_shot(pe, false)
+		Sprites.shot(self, pe, false, time)
 	for pt in particles:
 		var c: Color = pt["c"]
-		c.a = clampf(pt["life"] / 40.0, 0.0, 1.0)
-		draw_rect(Rect2(pt["x"], pt["y"], pt["s"], pt["s"]), c)
-	_draw_hero()
+		c.a = clampf(float(pt["life"]) / 40.0, 0.0, 1.0)
+		draw_circle(Vector2(pt["x"], pt["y"]), maxf(1.2, float(pt["s"]) * 0.55), c)
+	Sprites.hero(self, hero, time)
 	if hitbox != null:
-		draw_rect(Rect2(hitbox["x"], hitbox["y"], hitbox["w"], hitbox["h"]), Color(1, 1, 0.7, 0.28))
+		var facing_right: bool = hero["facing"]
+		Sprites.slash(self, hitbox, facing_right)
 	if wave != null:
-		var wc := Color("#ffcc00")
-		if wave["style"] == "decay":
-			wc = Color("#ff2244")
-		elif wave["style"] == "spirit":
-			wc = Color("#88aaff")
-		elif wave["style"] == "tri":
-			wc = Color("#66ffcc")
-		draw_arc(Vector2(wave["x"], wave["y"]), wave["r"], 0, TAU, 48, wc, 3.0)
+		Sprites.aoe(self, wave)
 	var font := ThemeDB.fallback_font
 	for n in numbers:
-		draw_string(font, Vector2(n["x"], n["y"]), str(n["t"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, n["c"])
+		var nx: float = n["x"]
+		var ny: float = n["y"]
+		var label: String = str(n["t"])
+		draw_string(font, Vector2(nx + 1, ny + 1), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color(0, 0, 0, 0.72))
+		draw_string(font, Vector2(nx, ny), label, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, n["c"])
 
 func _draw_props(ph: Dictionary, width: float) -> void:
+	var file := str(ph["bg"])
+	if file != "" and _texture(file) != null:
+		return
 	var col := Cat.colorize(str(ph["mob"]))
 	var x := 180.0
 	var base := Cat.FLOOR
 	var kind := sub % 3
 	while x < width - 80.0:
 		if kind == 0:
-			draw_rect(Rect2(x, base - 48, 78, 48), col.darkened(0.25))
-			draw_rect(Rect2(x + 8, base - 64, 62, 16), col)
+			draw_rect(Rect2(x - 2, base - 50, 76, 52), Color(0.08, 0.05, 0.04, 0.92))
+			draw_rect(Rect2(x, base - 46, 70, 46), col.darkened(0.32))
+			draw_rect(Rect2(x, base - 46, 70, 7), col.lightened(0.12))
+			draw_rect(Rect2(x + 8, base - 30, 18, 14), col.darkened(0.5))
 		elif kind == 1:
-			draw_rect(Rect2(x + 20, base - 110, 18, 110), col.darkened(0.35))
-			draw_rect(Rect2(x, base - 18, 58, 18), col)
+			draw_rect(Rect2(x + 22, base - 118, 22, 118), Color(0.08, 0.05, 0.04, 0.92))
+			draw_rect(Rect2(x + 24, base - 114, 18, 114), col.darkened(0.28))
+			draw_rect(Rect2(x + 8, base - 28, 50, 12), col)
+			draw_rect(Rect2(x + 8, base - 28, 50, 3), col.lightened(0.15))
 		else:
-			draw_rect(Rect2(x, base - 70, 90, 28), col.darkened(0.15))
-			draw_rect(Rect2(x + 30, base - 28, 8, 28), col.darkened(0.4))
+			draw_rect(Rect2(x, base - 78, 86, 24), Color(0.08, 0.05, 0.04, 0.92))
+			draw_rect(Rect2(x + 2, base - 74, 82, 20), col.darkened(0.15))
+			draw_rect(Rect2(x + 36, base - 54, 8, 54), col.darkened(0.4))
 		x += 250.0
-
-func _draw_pickup(pk: Dictionary) -> void:
-	var bob := sin(pk["ph"]) * 3.0
-	if pk["k"] == "heart":
-		_heart_shape(pk["x"], pk["y"] + bob, Color("#ff3355"))
-	else:
-		draw_rect(Rect2(pk["x"], pk["y"] + bob, pk["w"], pk["h"]), Color("#ffcc00"))
-		draw_rect(Rect2(pk["x"] + 5, pk["y"] + bob + 4, 8, 8), Color("#fff2a0"))
-
-func _heart_shape(x: float, y: float, col: Color) -> void:
-	draw_circle(Vector2(x + 6, y + 6), 6, col)
-	draw_circle(Vector2(x + 14, y + 6), 6, col)
-	draw_colored_polygon(PackedVector2Array([
-		Vector2(x, y + 8), Vector2(x + 20, y + 8), Vector2(x + 10, y + 20)
-	]), col)
-
-func _draw_enemy(e: Dictionary) -> void:
-	var col := Cat.colorize(str(e["c"]))
-	if e["stun"] > 0.0:
-		col = col.lightened(0.45)
-	var x: float = e["x"]
-	var y: float = e["y"]
-	draw_rect(Rect2(x, y, e["w"], e["h"]), col)
-	draw_rect(Rect2(x + 4, y + 6, 4, 4), Color("#ffe14a"))
-	draw_rect(Rect2(x + e["w"] - 8, y + 6, 4, 4), Color("#ffe14a"))
-	if e["k"] == "v":
-		draw_rect(Rect2(x - 6, y + 8, 8, 6), col.lightened(0.2))
-		draw_rect(Rect2(x + e["w"] - 2, y + 8, 8, 6), col.lightened(0.2))
-	if e["boss"] or e["k"] == "sub":
-		var ratio := clampf(float(e["hp"]) / maxf(1.0, float(e["hp_max"])), 0.0, 1.0)
-		draw_rect(Rect2(x, y - 12, e["w"], 5), Color(0.15, 0, 0))
-		draw_rect(Rect2(x, y - 12, e["w"] * ratio, 5), Color("#ff4444"))
-		if str(e["name"]) != "":
-			draw_string(ThemeDB.fallback_font, Vector2(x, y - 16), str(e["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#ffcc00"))
-
-func _draw_shot(p: Dictionary, friendly: bool) -> void:
-	var col := _shot_color(str(p["k"]))
-	if not friendly:
-		col = col.lightened(0.15)
-	draw_rect(Rect2(p["x"], p["y"], p["w"], p["h"]), col)
-
-func _shot_color(k: String) -> Color:
-	match k:
-		"fogo", "flame", "bomb", "chama":
-			return Color("#ff7700")
-		"gelo":
-			return Color("#d8ffff")
-		"terra":
-			return Color("#996633")
-		"vento", "pena":
-			return Color("#ccffcc")
-		"laser", "feixe", "onda":
-			return Color("#33ffff")
-		"agua", "water":
-			return Color("#4499ff")
-		"purple", "energy", "orb":
-			return Color("#bb55ff")
-		"bullet", "ball":
-			return Color("#dddddd")
-		"knife", "ruler", "marble", "syringe":
-			return Color("#f2f2f2")
-		"decay":
-			return Color("#331118")
-		"glitch":
-			return Color("#ff33ff")
-		"claw":
-			return Color("#dd3333")
-		"note", "notes":
-			return Color("#ffcc44")
-		"tornado":
-			return Color("#88ffcc")
-		"shuriken":
-			return Color("#e8e8e8")
-		_:
-			return Color.WHITE
-
-func _draw_hero() -> void:
-	if hero["iframe"] > 0.0 and int(hero["iframe"] / 4.0) % 2 == 0:
-		return
-	var arm := Cat.armor_by_id(str(hero["armor"]))
-	var legs := Cat.colorize(str(arm["legs"]))
-	var body := Cat.colorize(str(arm["body"]))
-	var trim := Cat.colorize(str(arm["trim"]))
-	var x: float = hero["x"]
-	var y: float = hero["y"]
-	if hero["ground"] and abs(hero["vx"]) < 0.2 and hero["atk"] <= 0.0 and not hero["fly"]:
-		y += sin(time * 0.08) * 1.2
-	if hero["atk"] > 0.0:
-		x += (6.0 if hero["facing"] else -6.0) * (hero["atk"] / 12.0)
-	draw_rect(Rect2(x + 6, Cat.FLOOR - 6, 24, 4), Color(0, 0, 0, 0.35))
-	var step := int(time / 6.0) % 2 if hero["ground"] and abs(hero["vx"]) > 0.2 else 0
-	draw_rect(Rect2(x + 6, y + 38 - (4 if step == 0 else 0), 10, 16), legs)
-	draw_rect(Rect2(x + 20, y + 38 - (0 if step == 0 else 4), 10, 16), legs)
-	draw_rect(Rect2(x + 4, y + 18, 28, 24), body)
-	draw_rect(Rect2(x + 4, y + 18, 28, 4), trim)
-	draw_rect(Rect2(x + 8, y + 4, 20, 16), Color("#f4d4b4"))
-	draw_rect(Rect2(x + 6, y, 24, 8), Color("#22cc88"))
-	var eye := 22.0 if hero["facing"] else 10.0
-	draw_rect(Rect2(x + eye, y + 9, 3, 3), Color.BLACK)
-	if hero["fly"]:
-		draw_rect(Rect2(x - 10, y + 16, 10, 18), Color(1, 1, 1, 0.85))
-		draw_rect(Rect2(x + 36, y + 16, 10, 18), Color(1, 1, 1, 0.85))
-	if hero["armor"] == "cavaleiro" or hero["armor"] == "samurai":
-		var sx: float = x + 32 if hero["facing"] else x - 16
-		draw_rect(Rect2(sx, y + 8, 6, 28), trim)
 
 func _texture(file: String) -> Texture2D:
 	if file == "":

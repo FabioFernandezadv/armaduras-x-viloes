@@ -2,6 +2,7 @@ extends Node2D
 
 const Cat = preload("res://scripts/catalog.gd")
 const WorldScript = preload("res://scripts/world.gd")
+const Sprites = preload("res://scripts/sprites.gd")
 
 enum St { MENU, STORY, CUT, SHOP, PLAY, PAUSE, BOSS, TRAVEL, OVER, WIN }
 
@@ -540,19 +541,15 @@ func _paint_shop(c: Control) -> void:
 		var sel := i == shop_i
 		var bg := Color("#ffcc00") if sel else (Color(0.2, 0.45, 0.25, 0.45) if owned else Color(0.15, 0.15, 0.22, 0.7))
 		c.draw_rect(Rect2(x + 4, y + 2, cell_w - 8, cell_h - 6), bg)
-		var body := Cat.colorize(str(arm["body"]))
-		var trim := Cat.colorize(str(arm["trim"]))
-		c.draw_rect(Rect2(x + 62, y + 16, 22, 28), body)
-		c.draw_rect(Rect2(x + 66, y + 8, 14, 10), Color("#22cc88"))
-		c.draw_rect(Rect2(x + 62, y + 16, 22, 4), trim)
 		if not owned:
-			c.draw_rect(Rect2(x + 4, y + 2, cell_w - 8, cell_h - 6), Color(0, 0, 0, 0.45))
-		_text(c, str(arm["name"]), x + 4, y + cell_h - 16, 9, Color.BLACK if sel else Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, cell_w - 8)
+			c.draw_rect(Rect2(x + 4, y + 2, cell_w - 8, cell_h - 6), Color(0, 0, 0, 0.22))
+		Sprites.hero_at(c, x + 40.0, y + 52.0, 0.26, str(arm["id"]), true, 0.0, 0.0, false, false, false, tempo)
+		_text(c, str(arm["name"]), x + 4, y + cell_h - 10, 9, Color.BLACK if sel else Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, cell_w - 8)
 		if owned:
-			_text(c, "OK", x + 4, y + 28, 11, Color("#114411") if sel else Color("#88ff88"), HORIZONTAL_ALIGNMENT_CENTER, cell_w - 8)
+			_text(c, "OK", x + 68, y + 26, 11, Color("#114411") if sel else Color("#88ff88"))
 		else:
 			var price_col := Color("#44ff66") if SaveData.coins >= int(arm["price"]) else Color("#ff5555")
-			_text(c, str(int(arm["price"])), x + 4, y + 28, 12, price_col, HORIZONTAL_ALIGNMENT_CENTER, cell_w - 8)
+			_text(c, str(int(arm["price"])), x + 68, y + 26, 12, price_col)
 	if shop_msg_t > 0.0:
 		c.draw_rect(Rect2(230, 492, 500, 28), Color(0, 0, 0, 0.85))
 		_text(c, shop_msg, 0, 512, 14, Color("#ffcc00"), HORIZONTAL_ALIGNMENT_CENTER, 960)
@@ -571,6 +568,7 @@ func _paint_play(c: Control) -> void:
 	c.draw_rect(Rect2(0, 500, 960, 40), edge_col)
 	c.draw_rect(Rect2(0, 0, 28, 540), edge_col)
 	c.draw_rect(Rect2(932, 0, 28, 540), edge_col)
+	c.draw_rect(Rect2(8, 6, 188, 78), Color(0, 0, 0, 0.42))
 	var hearts := int(world.hero["hp_max"] / 2)
 	for i in hearts:
 		var state := 0
@@ -578,22 +576,27 @@ func _paint_play(c: Control) -> void:
 			state = 2
 		elif world.hero["hp"] >= (i + 1) * 2 - 1:
 			state = 1
-		_hud_heart(c, 18 + i * 28, 36, state)
-	_text(c, "PONTOS %d" % world.points, 760, 28, 16, Color.WHITE)
-	_text(c, "%d moedas" % world.coins, 760, 48, 14, Color("#ffcc00"))
+		_hud_heart(c, 16 + i * 30, 12, state)
+	c.draw_rect(Rect2(748, 6, 200, 46), Color(0, 0, 0, 0.42))
+	_hud_text(c, "PONTOS %d" % world.points, 760, 26, 15, Color.WHITE)
+	Sprites.coin(c, 756, 30, 14, 14)
+	_hud_text(c, "%d moedas" % world.coins, 776, 44, 13, Color("#ffcc00"))
 	if SaveData.ng > 0:
-		_text(c, "NG+%d" % SaveData.ng, 860, 68, 14, Color("#ff4444"))
+		_hud_text(c, "NG+%d" % SaveData.ng, 860, 68, 14, Color("#ff4444"))
 	var arm := Cat.armor_by_id(str(world.hero["armor"]))
-	_text(c, str(arm["name"]), 18, 78, 13, Color("#aaccff"))
+	_hud_text(c, str(arm["name"]), 16, 58, 13, Color("#d6e6ff"))
 	var room: Array = ph["rooms"]
-	_text(c, "F%d  %s" % [int(ph["n"]), room[world.sub]], 18, 96, 13, Color("#ffcc00"))
+	_hud_text(c, "F%d  %s" % [int(ph["n"]), room[world.sub]], 16, 76, 13, Color("#ffcc00"))
 	if world.combo >= 2:
 		var cc := Color("#ff66cc") if world.combo >= 10 else (Color("#ffcc00") if world.combo >= 5 else Color.WHITE)
+		_text(c, "x%d KILLS" % world.combo, 1, 79, 26, Color(0, 0, 0, 0.75), HORIZONTAL_ALIGNMENT_CENTER, 960)
 		_text(c, "x%d KILLS" % world.combo, 0, 78, 26, cc, HORIZONTAL_ALIGNMENT_CENTER, 960)
 	var prog := clampf(world.hero["x"] / maxf(1.0, float(ph["width"]) - 200.0), 0.0, 1.0)
-	c.draw_rect(Rect2(200, 16, 560, 8), Color("#12305a"))
-	c.draw_rect(Rect2(200, 16, 560.0 * prog, 8), Color("#44aaff"))
-	c.draw_rect(Rect2(752, 12, 8, 16), Color("#ff4466"))
+	c.draw_rect(Rect2(206, 12, 528, 14), Color(0, 0, 0, 0.55))
+	c.draw_rect(Rect2(208, 14, 524, 10), Color("#0e2748"))
+	c.draw_rect(Rect2(208, 14, 524.0 * prog, 10), Color("#3aa0ff"))
+	c.draw_rect(Rect2(208, 14, 524.0 * prog, 3), Color(1, 1, 1, 0.4))
+	c.draw_rect(Rect2(724, 11, 8, 16), Color("#ff4466"))
 	if world.sub_t > 0.0:
 		var room_name := str(room[world.sub])
 		c.draw_rect(Rect2(220, 230, 520, 70), Color(0, 0, 0, 0.78))
@@ -613,12 +616,11 @@ func _paint_play(c: Control) -> void:
 			_text(c, "> %s >" % boss["name"], 700, 270, 18, Color("#ff4444") if int(tempo / 10.0) % 2 == 0 else Color("#ffcc00"))
 
 func _hud_heart(c: Control, x: float, y: float, state: int) -> void:
-	var col := Color("#661111") if state == 0 else Color("#ee2244")
-	c.draw_circle(Vector2(x + 6, y + 6), 6, col)
-	c.draw_circle(Vector2(x + 14, y + 6), 6, col)
-	c.draw_colored_polygon(PackedVector2Array([Vector2(x, y + 8), Vector2(x + 20, y + 8), Vector2(x + 10, y + 20)]), col)
-	if state == 1:
-		c.draw_rect(Rect2(x + 10, y, 12, 22), Color(0, 0, 0, 0.55))
+	Sprites.hud_heart(c, x, y, state)
+
+func _hud_text(c: Control, text: String, x: float, y: float, size: int, col: Color) -> void:
+	_text(c, text, x + 1, y + 1, size, Color(0, 0, 0, 0.8))
+	_text(c, text, x, y, size, col)
 
 func _paint_pause(c: Control) -> void:
 	c.draw_rect(Rect2(0, 0, 960, 540), Color(0, 0, 0, 0.7))
@@ -661,8 +663,7 @@ func _paint_travel(c: Control) -> void:
 			col = Color("#ffcc00") if int(tempo / 8.0) % 2 == 0 else Color("#ff8800")
 		c.draw_circle(pts[i], 12 if i == travel_to else 8, col)
 		_text(c, str(i + 1), pts[i].x - 8, pts[i].y + 4, 12, Color.BLACK)
-	c.draw_rect(Rect2(at.x - 6, at.y - 22, 12, 10), Color("#22cc88"))
-	c.draw_rect(Rect2(at.x - 5, at.y - 12, 10, 12), Color("#3a6acc"))
+	Sprites.hero_at(c, at.x, at.y - 2.0, 0.18, "cavaleiro", true, 0.0, 0.0, false, false, false, tempo)
 	var hint := "ENTER entrar na fase" if prog >= 1.0 else "a viajar..."
 	_text(c, hint, 0, 500, 16, Color.WHITE if int(tempo / 20.0) % 2 == 0 else Color("#888888"), HORIZONTAL_ALIGNMENT_CENTER, 960)
 
